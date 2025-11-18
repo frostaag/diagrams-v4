@@ -1,0 +1,157 @@
+name: Process Diagrams v4
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'drawio_files/**/*.drawio'
+      - 'drawio_files/**'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  process:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Dependencies
+        run: |
+          echo "🔧 Installing required tools..."
+          sudo apt-get update
+          sudo apt-get install -y curl jq
+          echo "✅ Dependencies installed"
+
+      - name: Process Diagrams
+        id: process
+        run: |
+          echo "🔄 Running diagram processing..."
+          ./scripts/convert.sh
+          
+          # Get processing stats
+          if [[ -f "diagram-registry.json" ]]; then
+            total_diagrams=$(jq '.diagrams | length' diagram-registry.json)
+            echo "processed=$total_diagrams" >> $GITHUB_OUTPUT
+          else
+            echo "processed=0" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Commit Changes
+        if: always()
+        run: |
+          git config --local user.email "action@github.com"
+          git config --local user.name "GitHub Action"
+          
+          # Add all changed files
+          git add drawio_files/
+          git add png_files/
+          git add diagram-registry.json
+          
+          # Check if there are changes to commit
+          if git diff --staged --quiet; then
+            echo "⚠️  No changes to commit"
+          else
+            git commit -m "Process diagrams: $(date '+%Y-%m-%d %H:%M')"
+            echo "✅ Changes committed"
+          fi
+
+      - name: Push Changes
+        if: always()
+        run: |
+          # Try to push changes
+          if git log origin/main..HEAD --oneline | grep -q .; then
+            echo "📤 Pushing changes..."
+            
+            # Pull with rebase to avoid conflicts
+            git pull --rebase origin main || {
+              echo "⚠️  Rebase conflict, attempting merge strategy..."
+              git rebase --abort
+              git pull --no-rebase origin main
+            }
+            
+            # Push changes
+            git push origin main || {
+              echo "❌ Push failed, trying force-with-lease..."
+              git push --force-with-lease origin main
+            }
+            
+            echo "✅ Changes pushed"
+          else
+            echo "ℹ️  No commits to push"
+          fi
+
+      - name: Upload to SharePoint and Notify Teams
+        if: always()
+        env:
+          SHAREPOINT_TENANT_ID: ${{ vars.DIAGRAMS_SHAREPOINT_TENANT_ID }}
+          SHAREPOINT_CLIENT_ID: ${{ vars.DIAGRAMS_SHAREPOINT_CLIENT_ID }}
+          SHAREPOINT_CLIENT_SECRET: ${{ secrets.DIAGRAMS_SHAREPOINT_CLIENTSECRET }}
+          SHAREPOINT_URL: ${{ vars.DIAGRAMS_SHAREPOINT_URL }}
+          SHAREPOINT_DRIVE_ID: ${{ vars.DIAGRAMS_SHAREPOINT_DRIVE_ID }}
+          TEAMS_WEBHOOK_URL: ${{ vars.DIAGRAMS_TEAMS_NOTIFICATION_WEBHOOK }}
+        run: |
+          echo "📤 Running upload and notification..."
+          ./scripts/upload.sh
+
+  notify-failure:
+    needs: process
+    runs-on: ubuntu-latest
+    if: failure()
+    
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        
+      - name: Send Failure Notification
+        env:
+          TEAMS_WEBHOOK_URL: ${{ vars.DIAGRAMS_TEAMS_NOTIFICATION_WEBHOOK }}
+        run: |
+          if [[ -z "$TEAMS_WEBHOOK_URL" ]]; then
+            echo "⚠️  Teams webhook not configured"
+            exit 0
+          fi
+          
+          commit_hash=$(git log -1 --format="%h" 2>/dev/null || echo "unknown")
+          author_name=$(git log -1 --format="%an" 2>/dev/null || echo "Unknown")
+          commit_message=$(git log -1 --format="%s" 2>/dev/null || echo "Unknown")
+          
+          # Escape for JSON
+          escaped_author=$(echo "$author_name" | sed 's/"/\\"/g')
+          escaped_message=$(echo "$commit_message" | sed 's/"/\\"/g')
+          
+          curl -s -X POST "$TEAMS_WEBHOOK_URL" \
+            -H "Content-Type: application/json" \
+            -d "{
+              \"@type\": \"MessageCard\",
+              \"@context\": \"https://schema.org/extensions\",
+              \"summary\": \"Diagrams-v4 Processing Failed\",
+              \"themeColor\": \"dc3545\",
+              \"title\": \"❌ Diagrams-v4 Processing Failed\",
+              \"text\": \"The diagram processing workflow encountered an error.\",
+              \"sections\": [{
+                \"activityTitle\": \"📋 Error Details\",
+                \"facts\": [
+                  {\"name\": \"👤 Author\", \"value\": \"$escaped_author\"},
+                  {\"name\": \"📝 Commit\", \"value\": \"$commit_hash\"},
+                  {\"name\": \"💬 Message\", \"value\": \"$escaped_message\"},
+                  {\"name\": \"🔄 Run\", \"value\": \"#${{ github.run_number }}\"}
+                ]
+              }],
+              \"potentialAction\": [{
+                \"@type\": \"OpenUri\",
+                \"name\": \"🔍 View Details\",
+                \"targets\": [{
+                  \"os\": \"default\",
+                  \"uri\": \"${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}\"
+                }]
+              }]
+            }"
+          
+          echo "✅ Failure notification sent"
