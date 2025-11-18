@@ -37,3 +37,7 @@ pnpm-debug.log*
 # package-lock.json
 # yarn.lock
 # pnpm-lock.yaml
+
+# Archive directories (test/temporary files)
+drawio_files/.archive/
+drawio_files/.archive_png/
