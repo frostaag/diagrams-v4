@@ -31,8 +31,17 @@ jobs:
 
       - name: Process Diagrams
         id: process
+        continue-on-error: true
         run: |
           echo "🔄 Running diagram processing..."
+          
+          # Check if there are any .drawio files to process
+          if [[ -z "$(find drawio_files -name "*.drawio" -type f 2>/dev/null)" ]]; then
+            echo "ℹ️  No .drawio files found to process"
+            echo "processed=0" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+          
           ./scripts/convert.sh
           
           # Get processing stats
