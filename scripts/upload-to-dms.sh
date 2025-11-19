@@ -114,9 +114,16 @@ upload_file() {
   # Using the exact format recommended by SAP for createDocument
   echo -e "${BLUE}📤 Uploading to: ${DMS_API_URL}/browser/${REPO_ID}/root${NC}" >&2
   echo -e "${BLUE}🔍 File details:${NC}" >&2
-  echo -e "  File: ${svg_file}" >&2
+  echo -e "  File path: ${svg_file}" >&2
+  echo -e "  File exists: $(if [[ -f "${svg_file}" ]]; then echo "YES"; else echo "NO"; fi)" >&2
   echo -e "  Size: $(stat -f%z "${svg_file}" 2>/dev/null || stat -c%s "${svg_file}" 2>/dev/null || echo "unknown") bytes" >&2
-  echo -e "  Name: ${filename}" >&2
+  echo -e "  Filename to upload: ${filename}" >&2
+  
+  # Verify file exists before attempting upload
+  if [[ ! -f "${svg_file}" ]]; then
+    echo -e "${RED}❌ Error: File not found: ${svg_file}${NC}" >&2
+    return 1
+  fi
   
   # Capture curl output properly - redirect stderr to a temp file to avoid contamination
   TEMP_ERR=$(mktemp)
