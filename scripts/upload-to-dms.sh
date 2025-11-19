@@ -257,17 +257,23 @@ if [[ ! -d "svg_files" ]]; then
   exit 0
 fi
 
-# Find all SVG files
-SVG_FILES=$(find svg_files -name "*.svg" -type f 2>/dev/null || true)
+# Get list of current versions from diagram registry
+if [[ ! -f "diagram-registry.json" ]]; then
+  echo -e "${RED}❌ Error: diagram-registry.json not found${NC}"
+  exit 1
+fi
+
+# Extract current SVG files (latest versions only) from registry
+SVG_FILES=$(jq -r '.diagrams[] | select(.status == "active") | "svg_files/\(.currentPngFile)"' diagram-registry.json 2>/dev/null || true)
 
 if [[ -z "$SVG_FILES" ]]; then
-  echo -e "${YELLOW}⚠️  No SVG files found in svg_files directory${NC}"
+  echo -e "${YELLOW}⚠️  No current SVG files found in diagram registry${NC}"
   echo -e "${YELLOW}ℹ️  This is expected if no diagrams have been converted yet${NC}"
   echo -e "${GREEN}✅ Skipping DMS upload (no files to upload)${NC}"
   exit 0
 fi
 
-echo -e "${BLUE}ℹ️  Found $(echo "$SVG_FILES" | wc -l | tr -d ' ') SVG files to upload${NC}"
+echo -e "${BLUE}ℹ️  Found $(echo "$SVG_FILES" | wc -l | tr -d ' ') current diagram versions to upload${NC}"
 
 # Upload each file
 # Temporarily disable 'set -e' to handle return codes manually

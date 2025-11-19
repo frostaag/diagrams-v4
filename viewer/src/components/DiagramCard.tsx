@@ -8,7 +8,8 @@ interface DiagramCardProps {
 }
 
 export function DiagramCard({ diagram, onClick }: DiagramCardProps) {
-  const imageUrl = getDiagramImageUrl(diagram);
+  // Use imageUrl from diagram if available (from DMS), otherwise get from local files
+  const imageUrl = diagram.imageUrl || getDiagramImageUrl(diagram);
   
   return (
     <div

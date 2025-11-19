@@ -1,7 +1,8 @@
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { Search, Folder, RefreshCw } from 'lucide-react';
+import { Search, Folder, RefreshCw, Cloud, HardDrive } from 'lucide-react';
 import { getDiagrams, groupDiagramsByCategory, searchDiagrams } from '@/services/diagramService';
+import { getDiagramsFromDMS, isDMSConfigured, groupDiagramsByCategory as groupDMSDiagrams, searchDiagrams as searchDMSDiagrams } from '@/services/dmsService';
 import { DiagramCard } from '@/components/DiagramCard';
 import { DiagramModal } from '@/components/DiagramModal';
 import type { Diagram } from '@/types/diagram';
@@ -11,9 +12,12 @@ function App() {
   const [searchTerm, setSearchTerm] = useState('');
   const [isModalOpen, setIsModalOpen] = useState(false);
 
+  // Use DMS if configured, otherwise fall back to local files
+  const useDMS = isDMSConfigured();
+  
   const { data: diagrams = [], isLoading, error, refetch } = useQuery({
-    queryKey: ['diagrams'],
-    queryFn: getDiagrams,
+    queryKey: ['diagrams', useDMS ? 'dms' : 'local'],
+    queryFn: useDMS ? getDiagramsFromDMS : getDiagrams,
     staleTime: 5 * 60 * 1000, // 5 minutes
   });
 

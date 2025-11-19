@@ -10,6 +10,7 @@ export interface Diagram {
   lastModified: string;
   versions: string[];
   status: string;
+  imageUrl?: string; // Optional: URL to fetch image from DMS
 }
 
 export interface DiagramRegistry {
