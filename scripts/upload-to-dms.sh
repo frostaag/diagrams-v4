@@ -63,8 +63,17 @@ get_or_create_repository() {
     -H "Authorization: Bearer ${ACCESS_TOKEN}" \
     -H "Accept: application/json")
   
-  # Try to find existing diagrams repository
-  REPO_ID=$(echo "$REPOS_RESPONSE" | jq -r '.repositories[] | select(.displayName == "Diagrams Repository") | .id' | head -n1)
+  echo -e "${BLUE}Debug: Repositories API Response:${NC}"
+  echo "$REPOS_RESPONSE" | jq '.' || echo "$REPOS_RESPONSE"
+  
+  # Check if response has repositories
+  if echo "$REPOS_RESPONSE" | jq -e '.repositories' > /dev/null 2>&1; then
+    # Try to find existing diagrams repository
+    REPO_ID=$(echo "$REPOS_RESPONSE" | jq -r '.repositories[] | select(.displayName == "Diagrams Repository") | .id' | head -n1)
+  else
+    echo -e "${YELLOW}⚠️  Unexpected API response format${NC}"
+    REPO_ID=""
+  fi
   
   if [[ -n "$REPO_ID" && "$REPO_ID" != "null" ]]; then
     echo -e "${GREEN}✅ Found existing repository: ${REPO_ID}${NC}"
