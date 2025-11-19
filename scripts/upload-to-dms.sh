@@ -112,7 +112,7 @@ upload_file() {
   
   # Create new file using CMIS Browser Binding API
   # Using the exact format recommended by SAP for createDocument
-  echo -e "${BLUE}📤 Uploading to: ${DMS_API_URL}/${REPO_ID}/root${NC}" >&2
+  echo -e "${BLUE}📤 Uploading to: ${DMS_API_URL}/browser/${REPO_ID}/root${NC}" >&2
   echo -e "${BLUE}🔍 File details:${NC}" >&2
   echo -e "  File: ${svg_file}" >&2
   echo -e "  Size: $(stat -f%z "${svg_file}" 2>/dev/null || stat -c%s "${svg_file}" 2>/dev/null || echo "unknown") bytes" >&2
@@ -121,7 +121,7 @@ upload_file() {
   # Capture curl output properly - redirect stderr to a temp file to avoid contamination
   TEMP_ERR=$(mktemp)
   UPLOAD_RESPONSE=$(curl -s -w "\n%{http_code}" -X POST \
-    "${DMS_API_URL}/${REPO_ID}/root" \
+    "${DMS_API_URL}/browser/${REPO_ID}/root" \
     -H "Authorization: Bearer ${ACCESS_TOKEN}" \
     -H "Accept: application/json" \
     -F "cmisaction=createDocument" \
