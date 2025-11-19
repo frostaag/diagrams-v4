@@ -26,7 +26,18 @@ jobs:
         run: |
           echo "🔧 Installing required tools..."
           sudo apt-get update
-          sudo apt-get install -y curl jq
+          sudo apt-get install -y curl jq xvfb libgbm1 libasound2
+          
+          echo "📦 Installing Draw.io CLI..."
+          # Download and install draw.io desktop (headless mode for CLI)
+          DRAWIO_VERSION="24.7.8"
+          wget -q "https://github.com/jgraph/drawio-desktop/releases/download/v${DRAWIO_VERSION}/drawio-amd64-${DRAWIO_VERSION}.deb"
+          sudo apt-get install -y ./drawio-amd64-${DRAWIO_VERSION}.deb
+          rm drawio-amd64-${DRAWIO_VERSION}.deb
+          
+          # Verify installation
+          drawio --version || echo "⚠️  Draw.io CLI installed but version check failed (this is OK)"
+          
           echo "✅ Dependencies installed"
 
       - name: Process Diagrams

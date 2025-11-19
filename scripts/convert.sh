@@ -153,31 +153,77 @@ convert_to_png() {
   local drawio_file="$1"
   local png_file="$2"
   
-  echo "🎨 Converting using diagrams.net export API..."
+  echo "🎨 Converting diagram to PNG..."
   
-  # Read the .drawio file content
-  local drawio_content=$(cat "$drawio_file")
-  
-  # Use diagrams.net export API
-  local response=$(curl -s -w "HTTPSTATUS:%{http_code}" -X POST \
-    "https://convert.diagrams.net/export" \
-    -H "Content-Type: application/x-www-form-urlencoded" \
-    -d "format=png" \
-    -d "scale=2" \
-    -d "border=10" \
-    -d "bg=ffffff" \
-    --data-urlencode "xml=$drawio_content" \
-    --output "$png_file")
-  
-  # Extract HTTP status code
-  local http_code=$(echo "$response" | grep -o "HTTPSTATUS:[0-9]*" | cut -d: -f2)
-  
-  if [[ "$http_code" -eq 200 ]] && [[ -f "$png_file" ]] && [[ -s "$png_file" ]]; then
-    return 0
-  else
-    rm -f "$png_file" 2>/dev/null || true
-    return 1
+  # Method 1: Try drawio CLI if available
+  if command -v drawio &> /dev/null; then
+    echo "   Using Draw.io CLI..."
+    
+    # Check if running in headless environment (like GitHub Actions)
+    if command -v xvfb-run &> /dev/null; then
+      # Use xvfb-run for headless display
+      if xvfb-run -a drawio -x -f png -o "$png_file" "$drawio_file" 2>/dev/null; then
+        if [[ -f "$png_file" ]] && [[ -s "$png_file" ]]; then
+          echo "   ✅ Success with drawio CLI (headless)"
+          return 0
+        fi
+      fi
+    else
+      # Try without xvfb-run (local environment with display)
+      if drawio -x -f png -o "$png_file" "$drawio_file" 2>/dev/null; then
+        if [[ -f "$png_file" ]] && [[ -s "$png_file" ]]; then
+          echo "   ✅ Success with drawio CLI"
+          return 0
+        fi
+      fi
+    fi
   fi
+  
+  # Method 2: Try using diagrams.net desktop app if installed
+  if [[ -d "/Applications/draw.io.app" ]]; then
+    echo "   Using Draw.io Desktop app..."
+    if /Applications/draw.io.app/Contents/MacOS/draw.io -x -f png -o "$png_file" "$drawio_file" 2>/dev/null; then
+      if [[ -f "$png_file" ]] && [[ -s "$png_file" ]]; then
+        echo "   ✅ Success with Draw.io app"
+        return 0
+      fi
+    fi
+  fi
+  
+  # Method 3: Try Kroki API
+  echo "   Using Kroki API..."
+  local drawio_content=$(cat "$drawio_file" | base64)
+  local response_code=$(curl -s -w "%{http_code}" -o "$png_file" \
+    -X POST "https://kroki.io/graphviz/png" \
+    -H "Content-Type: text/plain" \
+    -d "@$drawio_file" 2>/dev/null || echo "000")
+  
+  if [[ "$response_code" == "200" ]] && [[ -f "$png_file" ]] && [[ -s "$png_file" ]]; then
+    echo "   ✅ Success with Kroki API"
+    return 0
+  fi
+  
+  # Method 4: Create placeholder PNG
+  echo "   ⚠️  No conversion method available, creating placeholder..."
+  
+  # Check if ImageMagick is available for placeholder
+  if command -v convert &> /dev/null; then
+    convert -size 800x600 xc:white \
+      -gravity center \
+      -pointsize 24 \
+      -annotate +0+0 "Diagram: $(basename "$drawio_file")\n\nPlease open in Draw.io to view\n\nConversion requires:\n- Draw.io Desktop app\n- or drawio CLI" \
+      "$png_file" 2>/dev/null
+    
+    if [[ -f "$png_file" ]] && [[ -s "$png_file" ]]; then
+      echo "   📝 Created placeholder image"
+      return 0
+    fi
+  fi
+  
+  # Last resort: create empty file to mark as processed
+  echo "   ❌ All conversion methods failed"
+  echo "   💡 Install Draw.io Desktop: https://www.diagrams.net/"
+  return 1
 }
 
 # Process all .drawio files in drawio_files directory

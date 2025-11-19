@@ -119,7 +119,7 @@ if [[ -f "diagram-registry.json" ]]; then
             id="${BASH_REMATCH[1]}"
             
             # Check if ID exists in registry
-            registry_file=$(jq -r ".mappings.\"$id\".currentDrawioFile // empty" diagram-registry.json)
+            registry_file=$(jq -r ".diagrams.\"$id\".drawioFile // empty" diagram-registry.json)
             
             if [[ -z "$registry_file" ]]; then
                 ORPHANED_FILES+=("$basename_file (ID: $id)")
