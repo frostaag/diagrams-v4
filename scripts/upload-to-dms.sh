@@ -269,13 +269,13 @@ fi
 echo -e "${BLUE}ℹ️  Found $(echo "$SVG_FILES" | wc -l | tr -d ' ') SVG files to upload${NC}"
 
 # Upload each file
-for svg_file in $SVG_FILES; do
+while IFS= read -r svg_file; do
   if upload_file "$svg_file"; then
     ((SUCCESS_COUNT++))
   else
     ((FAIL_COUNT++))
   fi
-done
+done <<< "$SVG_FILES"
 
 # Summary
 echo ""
