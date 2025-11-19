@@ -14,11 +14,11 @@ PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 cd "$PROJECT_ROOT"
 
 # Ensure required directories exist
-mkdir -p drawio_files png_files
+mkdir -p drawio_files svg_files
 
 # Ensure changelog exists with proper header
-if [[ ! -f "png_files/CHANGELOG.csv" ]]; then
-  echo "Date,Time,DiagramID,DiagramName,Action,Version,Commit,Author,CommitMessage,FileSize,PngPath" > png_files/CHANGELOG.csv
+if [[ ! -f "svg_files/CHANGELOG.csv" ]]; then
+  echo "Date,Time,DiagramID,DiagramName,Action,Version,Commit,Author,CommitMessage,FileSize,SvgPath" > svg_files/CHANGELOG.csv
   echo "✅ Created CHANGELOG.csv"
 fi
 
@@ -148,12 +148,12 @@ get_next_version() {
   fi
 }
 
-# Function to convert drawio to PNG
-convert_to_png() {
+# Function to convert drawio to SVG
+convert_to_svg() {
   local drawio_file="$1"
-  local png_file="$2"
+  local svg_file="$2"
   
-  echo "🎨 Converting diagram to PNG..."
+  echo "🎨 Converting diagram to SVG..."
   
   # Method 1: Try drawio CLI if available
   if command -v drawio &> /dev/null; then
@@ -162,16 +162,16 @@ convert_to_png() {
     # Check if running in headless environment (like GitHub Actions)
     if command -v xvfb-run &> /dev/null; then
       # Use xvfb-run for headless display
-      if xvfb-run -a drawio -x -f png -o "$png_file" "$drawio_file" 2>/dev/null; then
-        if [[ -f "$png_file" ]] && [[ -s "$png_file" ]]; then
+      if xvfb-run -a drawio -x -f svg -o "$svg_file" "$drawio_file" 2>/dev/null; then
+        if [[ -f "$svg_file" ]] && [[ -s "$svg_file" ]]; then
           echo "   ✅ Success with drawio CLI (headless)"
           return 0
         fi
       fi
     else
       # Try without xvfb-run (local environment with display)
-      if drawio -x -f png -o "$png_file" "$drawio_file" 2>/dev/null; then
-        if [[ -f "$png_file" ]] && [[ -s "$png_file" ]]; then
+      if drawio -x -f svg -o "$svg_file" "$drawio_file" 2>/dev/null; then
+        if [[ -f "$svg_file" ]] && [[ -s "$svg_file" ]]; then
           echo "   ✅ Success with drawio CLI"
           return 0
         fi
@@ -182,42 +182,37 @@ convert_to_png() {
   # Method 2: Try using diagrams.net desktop app if installed
   if [[ -d "/Applications/draw.io.app" ]]; then
     echo "   Using Draw.io Desktop app..."
-    if /Applications/draw.io.app/Contents/MacOS/draw.io -x -f png -o "$png_file" "$drawio_file" 2>/dev/null; then
-      if [[ -f "$png_file" ]] && [[ -s "$png_file" ]]; then
+    if /Applications/draw.io.app/Contents/MacOS/draw.io -x -f svg -o "$svg_file" "$drawio_file" 2>/dev/null; then
+      if [[ -f "$svg_file" ]] && [[ -s "$svg_file" ]]; then
         echo "   ✅ Success with Draw.io app"
         return 0
       fi
     fi
   fi
   
-  # Method 3: Try Kroki API
-  echo "   Using Kroki API..."
-  local drawio_content=$(cat "$drawio_file" | base64)
-  local response_code=$(curl -s -w "%{http_code}" -o "$png_file" \
-    -X POST "https://kroki.io/graphviz/png" \
-    -H "Content-Type: text/plain" \
-    -d "@$drawio_file" 2>/dev/null || echo "000")
-  
-  if [[ "$response_code" == "200" ]] && [[ -f "$png_file" ]] && [[ -s "$png_file" ]]; then
-    echo "   ✅ Success with Kroki API"
-    return 0
-  fi
-  
-  # Method 4: Create placeholder PNG
+  # Method 3: Create placeholder SVG
   echo "   ⚠️  No conversion method available, creating placeholder..."
   
-  # Check if ImageMagick is available for placeholder
-  if command -v convert &> /dev/null; then
-    convert -size 800x600 xc:white \
-      -gravity center \
-      -pointsize 24 \
-      -annotate +0+0 "Diagram: $(basename "$drawio_file")\n\nPlease open in Draw.io to view\n\nConversion requires:\n- Draw.io Desktop app\n- or drawio CLI" \
-      "$png_file" 2>/dev/null
-    
-    if [[ -f "$png_file" ]] && [[ -s "$png_file" ]]; then
-      echo "   📝 Created placeholder image"
-      return 0
-    fi
+  # Create a simple SVG placeholder
+  cat > "$svg_file" << EOF
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="800" height="600" viewBox="0 0 800 600">
+  <rect width="800" height="600" fill="#f8f9fa"/>
+  <text x="400" y="250" font-family="Arial, sans-serif" font-size="24" text-anchor="middle" fill="#333">
+    Diagram: $(basename "$drawio_file")
+  </text>
+  <text x="400" y="300" font-family="Arial, sans-serif" font-size="18" text-anchor="middle" fill="#666">
+    Please open in Draw.io to view
+  </text>
+  <text x="400" y="350" font-family="Arial, sans-serif" font-size="16" text-anchor="middle" fill="#999">
+    Conversion requires: Draw.io Desktop app or drawio CLI
+  </text>
+</svg>
+EOF
+  
+  if [[ -f "$svg_file" ]] && [[ -s "$svg_file" ]]; then
+    echo "   📝 Created placeholder SVG"
+    return 0
   fi
   
   # Last resort: create empty file to mark as processed
@@ -269,23 +264,23 @@ for file in drawio_files/*.drawio; do
   version=$(get_next_version "$diagram_id" "$commit_message")
   echo "📊 Version: $version"
   
-  # Generate PNG filename with version suffix
-  png_filename="${diagram_id}_${diagram_name}_${version}.png"
-  png_path="png_files/$png_filename"
+  # Generate SVG filename with version suffix
+  svg_filename="${diagram_id}_${diagram_name}_${version}.svg"
+  svg_path="svg_files/$svg_filename"
   
-  echo "🖼️  Output: $png_filename"
+  echo "🖼️  Output: $svg_filename"
   
-  # Convert to PNG
-  if convert_to_png "$file" "$png_path"; then
-    file_size=$(du -h "$png_path" | cut -f1)
+  # Convert to SVG
+  if convert_to_svg "$file" "$svg_path"; then
+    file_size=$(du -h "$svg_path" | cut -f1)
     echo "✅ Conversion successful ($file_size)"
     
     # Update registry
-    update_diagram_registry "$diagram_id" "$diagram_name" "$basename_file" "$basename_file" "$version" "$png_filename"
+    update_diagram_registry "$diagram_id" "$diagram_name" "$basename_file" "$basename_file" "$version" "$svg_filename"
     
     # Add to changelog
-    changelog_entry="${current_date},${current_time},\"${diagram_id}\",\"${diagram_name}\",\"Converted\",\"${version}\",\"${commit_hash}\",\"${author_name}\",\"${commit_message}\",\"${file_size}\",\"${png_filename}\""
-    echo "$changelog_entry" >> png_files/CHANGELOG.csv
+    changelog_entry="${current_date},${current_time},\"${diagram_id}\",\"${diagram_name}\",\"Converted\",\"${version}\",\"${commit_hash}\",\"${author_name}\",\"${commit_message}\",\"${file_size}\",\"${svg_filename}\""
+    echo "$changelog_entry" >> svg_files/CHANGELOG.csv
     
     ((processed_count++))
   else
@@ -293,7 +288,7 @@ for file in drawio_files/*.drawio; do
     
     # Add failure to changelog
     changelog_entry="${current_date},${current_time},\"${diagram_id}\",\"${diagram_name}\",\"Failed\",\"${version}\",\"${commit_hash}\",\"${author_name}\",\"${commit_message}\",\"0\",\"N/A\""
-    echo "$changelog_entry" >> png_files/CHANGELOG.csv
+    echo "$changelog_entry" >> svg_files/CHANGELOG.csv
     
     ((failed_count++))
   fi
@@ -306,7 +301,7 @@ echo "❌ Failed: $failed_count"
 echo ""
 echo "📄 Updated files:"
 echo "  - diagram-registry.json"
-echo "  - png_files/CHANGELOG.csv"
-echo "  - $(ls -1 png_files/*.png 2>/dev/null | wc -l | tr -d ' ') PNG files"
+echo "  - svg_files/CHANGELOG.csv"
+echo "  - $(ls -1 svg_files/*.svg 2>/dev/null | wc -l | tr -d ' ') SVG files"
 
 exit 0

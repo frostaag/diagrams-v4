@@ -2,6 +2,7 @@
 
 # Diagrams-v4 SharePoint Upload Script
 # Uploads CHANGELOG.csv to SharePoint and sends Teams notifications
+# Non-blocking: failures will be logged but won't stop the workflow
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
@@ -10,11 +11,19 @@ cd "$PROJECT_ROOT"
 
 echo "📤 Starting SharePoint upload and Teams notification..."
 
-# Check if changelog exists
-if [[ ! -f "png_files/CHANGELOG.csv" ]]; then
-  echo "❌ CHANGELOG.csv not found"
-  exit 1
+# Check if changelog exists (try both svg_files and png_files for backward compatibility)
+CHANGELOG_PATH=""
+if [[ -f "svg_files/CHANGELOG.csv" ]]; then
+  CHANGELOG_PATH="svg_files/CHANGELOG.csv"
+elif [[ -f "png_files/CHANGELOG.csv" ]]; then
+  CHANGELOG_PATH="png_files/CHANGELOG.csv"
+else
+  echo "⚠️  CHANGELOG.csv not found in svg_files/ or png_files/"
+  echo "ℹ️  Skipping upload and notification"
+  exit 0
 fi
+
+echo "✅ Found changelog at: $CHANGELOG_PATH"
 
 # Get git information (fallback if not in git repo)
 if git rev-parse --git-dir > /dev/null 2>&1; then
@@ -32,8 +41,8 @@ fi
 # Get latest changelog entry for notification
 latest_diagram=""
 latest_version=""
-if [[ -f "png_files/CHANGELOG.csv" ]]; then
-  latest_entry=$(tail -n 1 png_files/CHANGELOG.csv)
+if [[ -f "$CHANGELOG_PATH" ]]; then
+  latest_entry=$(tail -n 1 "$CHANGELOG_PATH")
   if [[ -n "$latest_entry" ]] && [[ "$latest_entry" != "Date,Time,DiagramID"* ]]; then
     latest_diagram=$(echo "$latest_entry" | cut -d',' -f3-4 | tr -d '"')
     latest_version=$(echo "$latest_entry" | cut -d',' -f6 | tr -d '"')
@@ -120,13 +129,16 @@ else
       if [[ "$http_code" -eq 200 ]] || [[ "$http_code" -eq 201 ]]; then
         echo "✅ Uploaded changelog to SharePoint"
       else
-        echo "❌ SharePoint upload failed (HTTP $http_code)"
+        echo "⚠️  SharePoint upload failed (HTTP $http_code)"
+        echo "ℹ️  This is non-critical, continuing..."
       fi
     else
-      echo "❌ Invalid SharePoint URL format"
+      echo "⚠️  Invalid SharePoint URL format"
+    echo "ℹ️  This is non-critical, continuing..."
     fi
   else
-    echo "❌ Failed to get SharePoint access token"
+    echo "⚠️  Failed to get SharePoint access token"
+    echo "ℹ️  This is non-critical, continuing..."
   fi
 fi
 
@@ -186,9 +198,12 @@ else
   if [[ "$http_code" -eq 200 ]] || [[ "$http_code" -eq 202 ]]; then
     echo "✅ Teams notification sent"
   else
-    echo "❌ Teams notification failed (HTTP $http_code)"
+    echo "⚠️  Teams notification failed (HTTP $http_code)"
+    echo "ℹ️  Response: $(echo "$teams_response" | sed 's/HTTPSTATUS.*//')"
+    echo "ℹ️  This is non-critical, continuing..."
   fi
 fi
 
 echo ""
 echo "✅ Upload process complete"
+exit 0

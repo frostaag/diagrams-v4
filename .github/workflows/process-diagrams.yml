@@ -71,6 +71,7 @@ jobs:
           
           # Add all changed files
           git add drawio_files/
+          git add svg_files/
           git add png_files/
           git add diagram-registry.json
           
