@@ -108,6 +108,23 @@ jobs:
             echo "ℹ️  No commits to push"
           fi
 
+      - name: Upload SVGs to SAP DMS
+        if: success()
+        continue-on-error: true
+        env:
+          DMS_API_URL: ${{ secrets.DMS_API_URL }}
+          DMS_CLIENT_ID: ${{ secrets.DMS_CLIENT_ID }}
+          DMS_CLIENT_SECRET: ${{ secrets.DMS_CLIENT_SECRET }}
+          DMS_XSUAA_URL: ${{ secrets.DMS_XSUAA_URL }}
+          DMS_REPOSITORY_ID: ${{ secrets.DMS_REPOSITORY_ID }}
+        run: |
+          if [[ -z "$DMS_API_URL" ]]; then
+            echo "⚠️  DMS credentials not configured, skipping upload"
+            exit 0
+          fi
+          echo "📤 Uploading SVGs to SAP DMS..."
+          ./scripts/upload-to-dms.sh
+
       - name: Upload to SharePoint and Notify Teams
         if: always()
         env:
