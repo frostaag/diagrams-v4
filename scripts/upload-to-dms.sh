@@ -15,7 +15,7 @@ DMS_API_URL="${DMS_API_URL:-}"
 DMS_CLIENT_ID="${DMS_CLIENT_ID:-}"
 DMS_CLIENT_SECRET="${DMS_CLIENT_SECRET:-}"
 DMS_XSUAA_URL="${DMS_XSUAA_URL:-}"
-DMS_REPOSITORY_ID="${DMS_REPOSITORY_ID:-}"
+DMS_REPOSITORY_ID="${DMS_REPOSITORY_ID:-06b87f25-1e4e-4dfb-8fbb-e5132d74f064}"
 
 # Validate required environment variables
 if [[ -z "$DMS_API_URL" || -z "$DMS_CLIENT_ID" || -z "$DMS_CLIENT_SECRET" || -z "$DMS_XSUAA_URL" ]]; then
@@ -31,12 +31,10 @@ fi
 
 echo -e "${BLUE}🔐 Authenticating with SAP DMS...${NC}"
 
-# Get OAuth2 token from XSUAA
+# Get OAuth2 token from XSUAA using Basic Auth (recommended approach)
 TOKEN_RESPONSE=$(curl -s -X POST "${DMS_XSUAA_URL}/oauth/token" \
-  -H "Content-Type: application/x-www-form-urlencoded" \
-  -d "grant_type=client_credentials" \
-  -d "client_id=${DMS_CLIENT_ID}" \
-  -d "client_secret=${DMS_CLIENT_SECRET}")
+  -u "${DMS_CLIENT_ID}:${DMS_CLIENT_SECRET}" \
+  -d "grant_type=client_credentials")
 
 ACCESS_TOKEN=$(echo "$TOKEN_RESPONSE" | jq -r '.access_token')
 
@@ -48,68 +46,56 @@ fi
 
 echo -e "${GREEN}✅ Authentication successful${NC}"
 
-# Function to get or create repository
-get_or_create_repository() {
-  if [[ -n "$DMS_REPOSITORY_ID" ]]; then
-    echo -e "${BLUE}ℹ️  Using existing repository ID: ${DMS_REPOSITORY_ID}${NC}"
-    echo "$DMS_REPOSITORY_ID"
-    return
-  fi
-  
-  echo -e "${BLUE}🔍 Searching for diagrams repository...${NC}"
-  
-  # List all repositories
-  REPOS_RESPONSE=$(curl -s -X GET "${DMS_API_URL}/browser/repositories" \
-    -H "Authorization: Bearer ${ACCESS_TOKEN}" \
-    -H "Accept: application/json")
-  
-  echo -e "${BLUE}Debug: Repositories API Response:${NC}"
-  echo "$REPOS_RESPONSE" | jq '.' || echo "$REPOS_RESPONSE"
-  
-  # Check if response has repositories
-  if echo "$REPOS_RESPONSE" | jq -e '.repositories' > /dev/null 2>&1; then
-    # Try to find existing diagrams repository
-    REPO_ID=$(echo "$REPOS_RESPONSE" | jq -r '.repositories[] | select(.displayName == "Diagrams Repository") | .id' | head -n1)
-  else
-    echo -e "${YELLOW}⚠️  Unexpected API response format${NC}"
-    REPO_ID=""
-  fi
-  
-  if [[ -n "$REPO_ID" && "$REPO_ID" != "null" ]]; then
-    echo -e "${GREEN}✅ Found existing repository: ${REPO_ID}${NC}"
-    echo "$REPO_ID"
-    return
-  fi
-  
-  echo -e "${YELLOW}⚠️  Repository not found, creating new one...${NC}"
-  
-  # Create new repository
-  CREATE_RESPONSE=$(curl -s -X POST "${DMS_API_URL}/browser/repositories" \
-    -H "Authorization: Bearer ${ACCESS_TOKEN}" \
-    -H "Content-Type: application/json" \
-    -d '{
-      "repository": {
-        "displayName": "Diagrams Repository",
-        "description": "Repository for technical diagrams from GitHub",
-        "repositoryType": "internal"
-      }
-    }')
-  
-  NEW_REPO_ID=$(echo "$CREATE_RESPONSE" | jq -r '.id')
-  
-  if [[ -z "$NEW_REPO_ID" || "$NEW_REPO_ID" == "null" ]]; then
-    echo -e "${RED}❌ Failed to create repository${NC}"
-    echo "Response: $CREATE_RESPONSE"
-    exit 1
-  fi
-  
-  echo -e "${GREEN}✅ Created new repository: ${NEW_REPO_ID}${NC}"
-  echo -e "${YELLOW}💡 Add this to GitHub Secrets as DMS_REPOSITORY_ID: ${NEW_REPO_ID}${NC}"
-  echo "$NEW_REPO_ID"
-}
+# Validate repository ID is provided
+if [[ -z "$DMS_REPOSITORY_ID" ]]; then
+  echo -e "${RED}❌ Error: DMS_REPOSITORY_ID is required${NC}"
+  echo "Please set the DMS_REPOSITORY_ID variable with your CMIS repository ID"
+  echo "You can find this in your SAP BTP DMS service key or by using the discovery script"
+  exit 1
+fi
 
-# Get repository ID
-REPO_ID=$(get_or_create_repository)
+echo -e "${BLUE}ℹ️  Using repository ID: ${DMS_REPOSITORY_ID}${NC}"
+REPO_ID="$DMS_REPOSITORY_ID"
+
+# Troubleshooting: Test repository connection
+echo -e "${BLUE}🔍 Testing repository connection...${NC}"
+REPO_TEST=$(curl -s -w "\n%{http_code}" -X GET \
+  "${DMS_API_URL}/browser/${REPO_ID}/root" \
+  -H "Authorization: Bearer ${ACCESS_TOKEN}" \
+  -H "Accept: application/json" 2>&1)
+
+REPO_HTTP_CODE=$(echo "$REPO_TEST" | tail -n1)
+REPO_RESPONSE=$(echo "$REPO_TEST" | head -n-1)
+
+echo -e "${BLUE}🔍 Repository test HTTP code: ${REPO_HTTP_CODE}${NC}"
+
+if [[ "$REPO_HTTP_CODE" =~ ^(200|201)$ ]]; then
+  echo -e "${GREEN}✅ Repository accessible${NC}"
+  echo -e "${BLUE}🔍 Repository info:${NC}"
+  echo "$REPO_RESPONSE" | jq -r 'if .properties then "  Name: \(.properties."cmis:name".value // "N/A")\n  Path: \(.properties."cmis:path".value // "N/A")\n  Type: \(.properties."cmis:objectTypeId".value // "N/A")" else . end' 2>/dev/null || echo "$REPO_RESPONSE"
+elif [[ "$REPO_HTTP_CODE" == "404" ]]; then
+  echo -e "${RED}❌ Repository not found (404)${NC}"
+  echo -e "${YELLOW}⚠️  Repository ID may be incorrect or repository doesn't exist${NC}"
+  echo -e "${BLUE}Response: ${REPO_RESPONSE}${NC}"
+  exit 1
+elif [[ "$REPO_HTTP_CODE" == "401" || "$REPO_HTTP_CODE" == "403" ]]; then
+  echo -e "${RED}❌ Authentication/Authorization error (${REPO_HTTP_CODE})${NC}"
+  echo -e "${YELLOW}⚠️  Token may not have permissions to access this repository${NC}"
+  echo -e "${BLUE}Response: ${REPO_RESPONSE}${NC}"
+  exit 1
+else
+  echo -e "${YELLOW}⚠️  Unexpected response code: ${REPO_HTTP_CODE}${NC}"
+  echo -e "${BLUE}Response: ${REPO_RESPONSE}${NC}"
+  echo -e "${YELLOW}⚠️  Continuing with upload attempt...${NC}"
+fi
+
+# Troubleshooting: List repository info
+echo -e "${BLUE}🔍 DMS Configuration:${NC}"
+echo -e "  API URL: ${DMS_API_URL}"
+echo -e "  Repository ID: ${REPO_ID}"
+echo -e "  Upload endpoint: ${DMS_API_URL}/browser/${REPO_ID}/root"
+echo -e "  Token length: ${#ACCESS_TOKEN} characters"
+echo -e "  Token starts with: ${ACCESS_TOKEN:0:20}..."
 
 # Function to upload file to DMS
 upload_file() {
@@ -125,107 +111,137 @@ upload_file() {
   local description=$(echo "$metadata" | jq -r '.description // ""')
   local category=$(echo "$metadata" | jq -r '.category // "General"')
   
-  # Check if file already exists in DMS
-  local existing_file=$(curl -s -X GET "${DMS_API_URL}/browser/repositories/${REPO_ID}/root/children" \
-    -H "Authorization: Bearer ${ACCESS_TOKEN}" \
-    -H "Accept: application/json" | \
-    jq -r ".objects[] | select(.object.properties[\"cmis:name\"].value == \"${filename}\") | .object.id")
+  # Create new file using CMIS Browser Binding API
+  # Using the exact format recommended by SAP for createDocument
+  echo -e "${BLUE}📤 Uploading to: ${DMS_API_URL}/browser/${REPO_ID}/root${NC}"
+  echo -e "${BLUE}🔍 File details:${NC}"
+  echo -e "  File: ${svg_file}"
+  echo -e "  Size: $(stat -f%z "${svg_file}" 2>/dev/null || stat -c%s "${svg_file}" 2>/dev/null || echo "unknown") bytes"
+  echo -e "  Name: ${filename}"
   
-  if [[ -n "$existing_file" && "$existing_file" != "null" ]]; then
-    echo -e "${YELLOW}⚠️  File already exists, updating...${NC}"
+  UPLOAD_RESPONSE=$(curl -s -w "\n%{http_code}" -X POST \
+    "${DMS_API_URL}/browser/${REPO_ID}/root" \
+    -H "Authorization: Bearer ${ACCESS_TOKEN}" \
+    -H "Accept: application/json" \
+    -F "cmisaction=createDocument" \
+    -F "propertyId[0]=cmis:name" \
+    -F "propertyValue[0]=${filename}" \
+    -F "propertyId[1]=cmis:objectTypeId" \
+    -F "propertyValue[1]=cmis:document" \
+    -F "filename=${filename}" \
+    -F "_charset=UTF-8" \
+    -F "succinct=true" \
+    -F "includeAllowableActions=true" \
+    -F "media=@${svg_file};type=image/svg+xml" 2>&1)
+  
+  HTTP_CODE=$(echo "$UPLOAD_RESPONSE" | tail -n1)
+  RESPONSE_BODY=$(echo "$UPLOAD_RESPONSE" | head -n-1)
+  
+  # Enhanced debug output
+  echo -e "${BLUE}🔍 Upload Response Details:${NC}"
+  echo -e "${BLUE}  HTTP Code: ${HTTP_CODE}${NC}"
+  echo -e "${BLUE}  Response length: ${#RESPONSE_BODY} characters${NC}"
+  
+  if [[ -n "$RESPONSE_BODY" ]]; then
+    echo -e "${BLUE}  Full Response Body:${NC}"
+    echo "$RESPONSE_BODY" | jq '.' 2>/dev/null || echo "$RESPONSE_BODY"
     
-    # Update existing file content
-    UPLOAD_RESPONSE=$(curl -s -w "\n%{http_code}" -X PUT \
-      "${DMS_API_URL}/browser/repositories/${REPO_ID}/root/${filename}/content" \
-      -H "Authorization: Bearer ${ACCESS_TOKEN}" \
-      -H "Content-Type: image/svg+xml" \
-      -H "cmis:name: ${filename}" \
-      --data-binary "@${svg_file}" 2>&1)
-    
-    HTTP_CODE=$(echo "$UPLOAD_RESPONSE" | tail -n1)
-    RESPONSE_BODY=$(echo "$UPLOAD_RESPONSE" | head -n-1)
-    
-    # Debug output
-    echo -e "${BLUE}Debug: HTTP Code = '${HTTP_CODE}'${NC}"
-    echo -e "${BLUE}Debug: Response Body = '${RESPONSE_BODY}'${NC}"
-    
-    if [[ "$HTTP_CODE" =~ ^(200|201|204)$ ]]; then
-      echo -e "${GREEN}✅ Updated ${filename}${NC}"
-      
-      # Update metadata
-      if [[ -n "$name" ]]; then
-        curl -s -X PATCH "${DMS_API_URL}/browser/repositories/${REPO_ID}/root/${filename}" \
-          -H "Authorization: Bearer ${ACCESS_TOKEN}" \
-          -H "Content-Type: application/json" \
-          -d "{
-            \"properties\": {
-              \"cmis:description\": \"${description}\",
-              \"sap:category\": \"${category}\"
-            }
-          }" > /dev/null
-      fi
-      
-      return 0
-    else
-      echo -e "${RED}❌ Failed to update ${filename} (HTTP ${HTTP_CODE})${NC}"
-      echo "$RESPONSE_BODY"
-      return 1
+    # Try to parse error details if present
+    ERROR_MSG=$(echo "$RESPONSE_BODY" | jq -r '.message // .error // .exception // empty' 2>/dev/null)
+    if [[ -n "$ERROR_MSG" ]]; then
+      echo -e "${RED}  Error Message: ${ERROR_MSG}${NC}"
     fi
+  fi
+  
+  if [[ "$HTTP_CODE" =~ ^(200|201)$ ]]; then
+    echo -e "${GREEN}✅ Uploaded ${filename}${NC}"
+    # Show document ID if available
+    DOC_ID=$(echo "$RESPONSE_BODY" | jq -r '.succinctProperties."cmis:objectId" // .properties."cmis:objectId".value // empty' 2>/dev/null)
+    if [[ -n "$DOC_ID" ]]; then
+      echo -e "${GREEN}  Document ID: ${DOC_ID}${NC}"
+    fi
+    return 0
   else
-    # Create new file
-    echo -e "${BLUE}Debug: Creating new file at ${DMS_API_URL}/browser/repositories/${REPO_ID}/root${NC}"
+    echo -e "${RED}❌ Failed to upload ${filename} (HTTP ${HTTP_CODE})${NC}"
+    echo -e "${RED}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+    echo -e "${RED}Troubleshooting Information:${NC}"
     
-    UPLOAD_RESPONSE=$(curl -s -w "\n%{http_code}" -X POST \
-      "${DMS_API_URL}/browser/repositories/${REPO_ID}/root" \
-      -H "Authorization: Bearer ${ACCESS_TOKEN}" \
-      -F "cmisaction=createDocument" \
-      -F "propertyId[0]=cmis:name" \
-      -F "propertyValue[0]=${filename}" \
-      -F "propertyId[1]=cmis:objectTypeId" \
-      -F "propertyValue[1]=cmis:document" \
-      -F "propertyId[2]=cmis:description" \
-      -F "propertyValue[2]=${description}" \
-      -F "filename=${filename}" \
-      -F "media=@${svg_file}" \
-      -F "_charset_=UTF-8" 2>&1)
+    case $HTTP_CODE in
+      400)
+        echo -e "${RED}  Error: Bad Request (400)${NC}"
+        echo -e "${YELLOW}  Possible causes:${NC}"
+        echo -e "${YELLOW}  - Invalid CMIS parameters${NC}"
+        echo -e "${YELLOW}  - Malformed request${NC}"
+        echo -e "${YELLOW}  - Invalid file format${NC}"
+        ;;
+      401)
+        echo -e "${RED}  Error: Unauthorized (401)${NC}"
+        echo -e "${YELLOW}  Possible causes:${NC}"
+        echo -e "${YELLOW}  - Access token expired${NC}"
+        echo -e "${YELLOW}  - Invalid authentication${NC}"
+        ;;
+      403)
+        echo -e "${RED}  Error: Forbidden (403)${NC}"
+        echo -e "${YELLOW}  Possible causes:${NC}"
+        echo -e "${YELLOW}  - Insufficient permissions to create documents${NC}"
+        echo -e "${YELLOW}  - Repository access denied${NC}"
+        ;;
+      404)
+        echo -e "${RED}  Error: Not Found (404)${NC}"
+        echo -e "${YELLOW}  Possible causes:${NC}"
+        echo -e "${YELLOW}  - Repository ID incorrect${NC}"
+        echo -e "${YELLOW}  - Invalid API endpoint${NC}"
+        ;;
+      409)
+        echo -e "${RED}  Error: Conflict (409)${NC}"
+        echo -e "${YELLOW}  Possible causes:${NC}"
+        echo -e "${YELLOW}  - Document with same name already exists${NC}"
+        ;;
+      500)
+        echo -e "${RED}  Error: Internal Server Error (500)${NC}"
+        echo -e "${YELLOW}  Possible causes:${NC}"
+        echo -e "${YELLOW}  - SAP DMS service issue${NC}"
+        echo -e "${YELLOW}  - Backend error${NC}"
+        ;;
+      *)
+        echo -e "${RED}  Error: Unexpected HTTP code ${HTTP_CODE}${NC}"
+        ;;
+    esac
     
-    HTTP_CODE=$(echo "$UPLOAD_RESPONSE" | tail -n1)
-    RESPONSE_BODY=$(echo "$UPLOAD_RESPONSE" | head -n-1)
-    
-    # Debug output
-    echo -e "${BLUE}Debug: HTTP Code = '${HTTP_CODE}'${NC}"
-    echo -e "${BLUE}Debug: Response Body (first 500 chars) = '${RESPONSE_BODY:0:500}'${NC}"
-    
-    if [[ "$HTTP_CODE" =~ ^(200|201)$ ]]; then
-      echo -e "${GREEN}✅ Uploaded ${filename}${NC}"
-      return 0
-    else
-      echo -e "${RED}❌ Failed to upload ${filename} (HTTP ${HTTP_CODE})${NC}"
-      echo "$RESPONSE_BODY"
-      return 1
+    if [[ -n "$RESPONSE_BODY" ]]; then
+      echo -e "${RED}  Full Error Response:${NC}"
+      echo "$RESPONSE_BODY" | jq '.' 2>/dev/null || echo "$RESPONSE_BODY"
     fi
+    echo -e "${RED}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+    return 1
   fi
 }
 
 # Main upload logic
-echo -e "${BLUE}📂 Processing SVG files...${NC}"
+echo -e "${BLUE}📤 Processing SVG files...${NC}"
 
 SUCCESS_COUNT=0
 FAIL_COUNT=0
 
 # Check if svg_files directory exists
 if [[ ! -d "svg_files" ]]; then
-  echo -e "${RED}❌ svg_files directory not found${NC}"
-  exit 1
+  echo -e "${YELLOW}⚠️  svg_files directory not found${NC}"
+  echo -e "${YELLOW}ℹ️  This is expected if no diagrams have been converted yet${NC}"
+  echo -e "${GREEN}✅ Skipping DMS upload (no files to upload)${NC}"
+  exit 0
 fi
 
 # Find all SVG files
-SVG_FILES=$(find svg_files -name "*.svg" -type f)
+SVG_FILES=$(find svg_files -name "*.svg" -type f 2>/dev/null || true)
 
 if [[ -z "$SVG_FILES" ]]; then
-  echo -e "${YELLOW}⚠️  No SVG files found to upload${NC}"
+  echo -e "${YELLOW}⚠️  No SVG files found in svg_files directory${NC}"
+  echo -e "${YELLOW}ℹ️  This is expected if no diagrams have been converted yet${NC}"
+  echo -e "${GREEN}✅ Skipping DMS upload (no files to upload)${NC}"
   exit 0
 fi
+
+echo -e "${BLUE}ℹ️  Found $(echo "$SVG_FILES" | wc -l | tr -d ' ') SVG files to upload${NC}"
 
 # Upload each file
 for svg_file in $SVG_FILES; do
