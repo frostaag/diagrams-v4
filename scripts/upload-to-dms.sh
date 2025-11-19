@@ -131,10 +131,14 @@ upload_file() {
       -H "Authorization: Bearer ${ACCESS_TOKEN}" \
       -H "Content-Type: image/svg+xml" \
       -H "cmis:name: ${filename}" \
-      --data-binary "@${svg_file}")
+      --data-binary "@${svg_file}" 2>&1)
     
     HTTP_CODE=$(echo "$UPLOAD_RESPONSE" | tail -n1)
     RESPONSE_BODY=$(echo "$UPLOAD_RESPONSE" | head -n-1)
+    
+    # Debug output
+    echo -e "${BLUE}Debug: HTTP Code = '${HTTP_CODE}'${NC}"
+    echo -e "${BLUE}Debug: Response Body = '${RESPONSE_BODY}'${NC}"
     
     if [[ "$HTTP_CODE" =~ ^(200|201|204)$ ]]; then
       echo -e "${GREEN}✅ Updated ${filename}${NC}"
@@ -160,6 +164,8 @@ upload_file() {
     fi
   else
     # Create new file
+    echo -e "${BLUE}Debug: Creating new file at ${DMS_API_URL}/browser/repositories/${REPO_ID}/root${NC}"
+    
     UPLOAD_RESPONSE=$(curl -s -w "\n%{http_code}" -X POST \
       "${DMS_API_URL}/browser/repositories/${REPO_ID}/root" \
       -H "Authorization: Bearer ${ACCESS_TOKEN}" \
@@ -172,10 +178,14 @@ upload_file() {
       -F "propertyValue[2]=${description}" \
       -F "filename=${filename}" \
       -F "media=@${svg_file}" \
-      -F "_charset_=UTF-8")
+      -F "_charset_=UTF-8" 2>&1)
     
     HTTP_CODE=$(echo "$UPLOAD_RESPONSE" | tail -n1)
     RESPONSE_BODY=$(echo "$UPLOAD_RESPONSE" | head -n-1)
+    
+    # Debug output
+    echo -e "${BLUE}Debug: HTTP Code = '${HTTP_CODE}'${NC}"
+    echo -e "${BLUE}Debug: Response Body (first 500 chars) = '${RESPONSE_BODY:0:500}'${NC}"
     
     if [[ "$HTTP_CODE" =~ ^(200|201)$ ]]; then
       echo -e "${GREEN}✅ Uploaded ${filename}${NC}"
