@@ -208,9 +208,9 @@ upload_file() {
         echo -e "${YELLOW}  - Invalid API endpoint${NC}" >&2
         ;;
       409)
-        echo -e "${RED}  Error: Conflict (409)${NC}" >&2
-        echo -e "${YELLOW}  Possible causes:${NC}" >&2
-        echo -e "${YELLOW}  - Document with same name already exists${NC}" >&2
+        echo -e "${YELLOW}⚠️  File already exists (HTTP 409)${NC}" >&2
+        echo -e "${YELLOW}  Skipping: ${filename}${NC}" >&2
+        return 2  # Return special code for "already exists"
         ;;
       500)
         echo -e "${RED}  Error: Internal Server Error (500)${NC}" >&2
@@ -247,6 +247,7 @@ echo -e "${BLUE}📤 Processing SVG files...${NC}"
 
 SUCCESS_COUNT=0
 FAIL_COUNT=0
+SKIP_COUNT=0
 
 # Check if svg_files directory exists
 if [[ ! -d "svg_files" ]]; then
@@ -270,8 +271,12 @@ echo -e "${BLUE}ℹ️  Found $(echo "$SVG_FILES" | wc -l | tr -d ' ') SVG files
 
 # Upload each file
 while IFS= read -r svg_file; do
-  if upload_file "$svg_file"; then
+  upload_file "$svg_file"
+  result=$?
+  if [[ $result -eq 0 ]]; then
     ((SUCCESS_COUNT++))
+  elif [[ $result -eq 2 ]]; then
+    ((SKIP_COUNT++))
   else
     ((FAIL_COUNT++))
   fi
@@ -283,6 +288,9 @@ echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━�
 echo -e "${BLUE}📊 Upload Summary${NC}"
 echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
 echo -e "${GREEN}✅ Successful: ${SUCCESS_COUNT}${NC}"
+if [[ $SKIP_COUNT -gt 0 ]]; then
+  echo -e "${YELLOW}⏭️  Skipped (already exists): ${SKIP_COUNT}${NC}"
+fi
 if [[ $FAIL_COUNT -gt 0 ]]; then
   echo -e "${RED}❌ Failed: ${FAIL_COUNT}${NC}"
 fi
