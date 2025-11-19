@@ -1,0 +1,13 @@
+---
+applications:
+  - name: diagrams-viewer
+    path: dist
+    buildpacks:
+      - staticfile_buildpack
+    memory: 128M
+    disk_quota: 256M
+    instances: 1
+    routes:
+      - route: diagrams-viewer-${random-word}.${default-domain}
+    env:
+      FORCE_HTTPS: true
