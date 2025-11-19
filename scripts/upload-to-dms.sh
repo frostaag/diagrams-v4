@@ -57,10 +57,10 @@ fi
 echo -e "${BLUE}ℹ️  Using repository ID: ${DMS_REPOSITORY_ID}${NC}"
 REPO_ID="$DMS_REPOSITORY_ID"
 
-# Troubleshooting: Test repository connection
+# Troubleshooting: Test repository connection using repositoryInfo endpoint
 echo -e "${BLUE}🔍 Testing repository connection...${NC}"
 REPO_TEST=$(curl -s -w "\n%{http_code}" -X GET \
-  "${DMS_API_URL}/browser/${REPO_ID}/root" \
+  "${DMS_API_URL}/${REPO_ID}/root?cmisselector=object" \
   -H "Authorization: Bearer ${ACCESS_TOKEN}" \
   -H "Accept: application/json" 2>&1)
 
@@ -74,10 +74,9 @@ if [[ "$REPO_HTTP_CODE" =~ ^(200|201)$ ]]; then
   echo -e "${BLUE}🔍 Repository info:${NC}"
   echo "$REPO_RESPONSE" | jq -r 'if .properties then "  Name: \(.properties."cmis:name".value // "N/A")\n  Path: \(.properties."cmis:path".value // "N/A")\n  Type: \(.properties."cmis:objectTypeId".value // "N/A")" else . end' 2>/dev/null || echo "$REPO_RESPONSE"
 elif [[ "$REPO_HTTP_CODE" == "404" ]]; then
-  echo -e "${RED}❌ Repository not found (404)${NC}"
-  echo -e "${YELLOW}⚠️  Repository ID may be incorrect or repository doesn't exist${NC}"
+  echo -e "${YELLOW}⚠️  Root folder not found via standard path${NC}"
   echo -e "${BLUE}Response: ${REPO_RESPONSE}${NC}"
-  exit 1
+  echo -e "${YELLOW}⚠️  This may be expected - will attempt upload anyway${NC}"
 elif [[ "$REPO_HTTP_CODE" == "401" || "$REPO_HTTP_CODE" == "403" ]]; then
   echo -e "${RED}❌ Authentication/Authorization error (${REPO_HTTP_CODE})${NC}"
   echo -e "${YELLOW}⚠️  Token may not have permissions to access this repository${NC}"
@@ -113,7 +112,7 @@ upload_file() {
   
   # Create new file using CMIS Browser Binding API
   # Using the exact format recommended by SAP for createDocument
-  echo -e "${BLUE}📤 Uploading to: ${DMS_API_URL}/browser/${REPO_ID}/root${NC}" >&2
+  echo -e "${BLUE}📤 Uploading to: ${DMS_API_URL}/${REPO_ID}/root${NC}" >&2
   echo -e "${BLUE}🔍 File details:${NC}" >&2
   echo -e "  File: ${svg_file}" >&2
   echo -e "  Size: $(stat -f%z "${svg_file}" 2>/dev/null || stat -c%s "${svg_file}" 2>/dev/null || echo "unknown") bytes" >&2
@@ -122,7 +121,7 @@ upload_file() {
   # Capture curl output properly - redirect stderr to a temp file to avoid contamination
   TEMP_ERR=$(mktemp)
   UPLOAD_RESPONSE=$(curl -s -w "\n%{http_code}" -X POST \
-    "${DMS_API_URL}/browser/${REPO_ID}/root" \
+    "${DMS_API_URL}/${REPO_ID}/root" \
     -H "Authorization: Bearer ${ACCESS_TOKEN}" \
     -H "Accept: application/json" \
     -F "cmisaction=createDocument" \
