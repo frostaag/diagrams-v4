@@ -69,11 +69,11 @@ jobs:
           git config --local user.email "action@github.com"
           git config --local user.name "GitHub Action"
           
-          # Add all changed files
-          git add drawio_files/
-          git add svg_files/
-          git add png_files/
-          git add diagram-registry.json
+          # Add all changed files (only if directories exist)
+          git add drawio_files/ 2>/dev/null || true
+          git add svg_files/ 2>/dev/null || true
+          [[ -d png_files ]] && git add png_files/ 2>/dev/null || true
+          git add diagram-registry.json 2>/dev/null || true
           
           # Check if there are changes to commit
           if git diff --staged --quiet; then

@@ -162,11 +162,18 @@ convert_to_svg() {
     # Check if running in headless environment (like GitHub Actions)
     if command -v xvfb-run &> /dev/null; then
       # Use xvfb-run for headless display
-      if xvfb-run -a drawio -x -f svg -o "$svg_file" "$drawio_file" 2>/dev/null; then
+      # Redirect stderr to suppress GPU/bus errors (non-fatal in headless mode)
+      if xvfb-run -a drawio -x -f svg -o "$svg_file" "$drawio_file" 2>&1 | grep -v "ERROR:bus.cc\|ERROR:viz_main_impl.cc" > /dev/null; then
+        # Check if file was created successfully regardless of warnings
         if [[ -f "$svg_file" ]] && [[ -s "$svg_file" ]]; then
           echo "   ✅ Success with drawio CLI (headless)"
           return 0
         fi
+      fi
+      # Fallback: Check if file exists even if command reported errors
+      if [[ -f "$svg_file" ]] && [[ -s "$svg_file" ]]; then
+        echo "   ✅ Success with drawio CLI (headless, with warnings)"
+        return 0
       fi
     else
       # Try without xvfb-run (local environment with display)
