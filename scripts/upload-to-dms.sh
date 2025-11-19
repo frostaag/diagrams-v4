@@ -270,6 +270,8 @@ fi
 echo -e "${BLUE}ℹ️  Found $(echo "$SVG_FILES" | wc -l | tr -d ' ') SVG files to upload${NC}"
 
 # Upload each file
+# Temporarily disable 'set -e' to handle return codes manually
+set +e
 while IFS= read -r svg_file; do
   upload_file "$svg_file"
   result=$?
@@ -281,6 +283,7 @@ while IFS= read -r svg_file; do
     ((FAIL_COUNT++))
   fi
 done <<< "$SVG_FILES"
+set -e
 
 # Summary
 echo ""
