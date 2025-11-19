@@ -113,12 +113,14 @@ upload_file() {
   
   # Create new file using CMIS Browser Binding API
   # Using the exact format recommended by SAP for createDocument
-  echo -e "${BLUE}📤 Uploading to: ${DMS_API_URL}/browser/${REPO_ID}/root${NC}"
-  echo -e "${BLUE}🔍 File details:${NC}"
-  echo -e "  File: ${svg_file}"
-  echo -e "  Size: $(stat -f%z "${svg_file}" 2>/dev/null || stat -c%s "${svg_file}" 2>/dev/null || echo "unknown") bytes"
-  echo -e "  Name: ${filename}"
+  echo -e "${BLUE}📤 Uploading to: ${DMS_API_URL}/browser/${REPO_ID}/root${NC}" >&2
+  echo -e "${BLUE}🔍 File details:${NC}" >&2
+  echo -e "  File: ${svg_file}" >&2
+  echo -e "  Size: $(stat -f%z "${svg_file}" 2>/dev/null || stat -c%s "${svg_file}" 2>/dev/null || echo "unknown") bytes" >&2
+  echo -e "  Name: ${filename}" >&2
   
+  # Capture curl output properly - redirect stderr to a temp file to avoid contamination
+  TEMP_ERR=$(mktemp)
   UPLOAD_RESPONSE=$(curl -s -w "\n%{http_code}" -X POST \
     "${DMS_API_URL}/browser/${REPO_ID}/root" \
     -H "Authorization: Bearer ${ACCESS_TOKEN}" \
@@ -132,87 +134,104 @@ upload_file() {
     -F "_charset=UTF-8" \
     -F "succinct=true" \
     -F "includeAllowableActions=true" \
-    -F "media=@${svg_file};type=image/svg+xml" 2>&1)
+    -F "media=@${svg_file};type=image/svg+xml" 2>"$TEMP_ERR")
+  CURL_STDERR=$(cat "$TEMP_ERR")
+  rm -f "$TEMP_ERR"
   
   HTTP_CODE=$(echo "$UPLOAD_RESPONSE" | tail -n1)
   RESPONSE_BODY=$(echo "$UPLOAD_RESPONSE" | head -n-1)
   
   # Enhanced debug output
-  echo -e "${BLUE}🔍 Upload Response Details:${NC}"
-  echo -e "${BLUE}  HTTP Code: ${HTTP_CODE}${NC}"
-  echo -e "${BLUE}  Response length: ${#RESPONSE_BODY} characters${NC}"
+  echo -e "${BLUE}🔍 Upload Response Details:${NC}" >&2
+  echo -e "${BLUE}  HTTP Code: '${HTTP_CODE}'${NC}" >&2
+  echo -e "${BLUE}  Response length: ${#RESPONSE_BODY} characters${NC}" >&2
+  
+  # Show curl stderr if present
+  if [[ -n "$CURL_STDERR" ]]; then
+    echo -e "${YELLOW}  Curl stderr: ${CURL_STDERR}${NC}" >&2
+  fi
   
   if [[ -n "$RESPONSE_BODY" ]]; then
-    echo -e "${BLUE}  Full Response Body:${NC}"
-    echo "$RESPONSE_BODY" | jq '.' 2>/dev/null || echo "$RESPONSE_BODY"
+    echo -e "${BLUE}  Full Response Body:${NC}" >&2
+    echo "$RESPONSE_BODY" | jq '.' 2>/dev/null || echo "$RESPONSE_BODY" >&2
     
     # Try to parse error details if present
     ERROR_MSG=$(echo "$RESPONSE_BODY" | jq -r '.message // .error // .exception // empty' 2>/dev/null)
     if [[ -n "$ERROR_MSG" ]]; then
-      echo -e "${RED}  Error Message: ${ERROR_MSG}${NC}"
+      echo -e "${RED}  Error Message: ${ERROR_MSG}${NC}" >&2
     fi
   fi
   
   if [[ "$HTTP_CODE" =~ ^(200|201)$ ]]; then
-    echo -e "${GREEN}✅ Uploaded ${filename}${NC}"
+    echo -e "${GREEN}✅ Uploaded ${filename}${NC}" >&2
     # Show document ID if available
     DOC_ID=$(echo "$RESPONSE_BODY" | jq -r '.succinctProperties."cmis:objectId" // .properties."cmis:objectId".value // empty' 2>/dev/null)
     if [[ -n "$DOC_ID" ]]; then
-      echo -e "${GREEN}  Document ID: ${DOC_ID}${NC}"
+      echo -e "${GREEN}  Document ID: ${DOC_ID}${NC}" >&2
     fi
     return 0
   else
-    echo -e "${RED}❌ Failed to upload ${filename} (HTTP ${HTTP_CODE})${NC}"
-    echo -e "${RED}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
-    echo -e "${RED}Troubleshooting Information:${NC}"
+    echo -e "${RED}❌ Failed to upload ${filename} (HTTP ${HTTP_CODE})${NC}" >&2
+    echo -e "${RED}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}" >&2
+    echo -e "${RED}Troubleshooting Information:${NC}" >&2
     
     case $HTTP_CODE in
       400)
-        echo -e "${RED}  Error: Bad Request (400)${NC}"
-        echo -e "${YELLOW}  Possible causes:${NC}"
-        echo -e "${YELLOW}  - Invalid CMIS parameters${NC}"
-        echo -e "${YELLOW}  - Malformed request${NC}"
-        echo -e "${YELLOW}  - Invalid file format${NC}"
+        echo -e "${RED}  Error: Bad Request (400)${NC}" >&2
+        echo -e "${YELLOW}  Possible causes:${NC}" >&2
+        echo -e "${YELLOW}  - Invalid CMIS parameters${NC}" >&2
+        echo -e "${YELLOW}  - Malformed request${NC}" >&2
+        echo -e "${YELLOW}  - Invalid file format${NC}" >&2
         ;;
       401)
-        echo -e "${RED}  Error: Unauthorized (401)${NC}"
-        echo -e "${YELLOW}  Possible causes:${NC}"
-        echo -e "${YELLOW}  - Access token expired${NC}"
-        echo -e "${YELLOW}  - Invalid authentication${NC}"
+        echo -e "${RED}  Error: Unauthorized (401)${NC}" >&2
+        echo -e "${YELLOW}  Possible causes:${NC}" >&2
+        echo -e "${YELLOW}  - Access token expired${NC}" >&2
+        echo -e "${YELLOW}  - Invalid authentication${NC}" >&2
         ;;
       403)
-        echo -e "${RED}  Error: Forbidden (403)${NC}"
-        echo -e "${YELLOW}  Possible causes:${NC}"
-        echo -e "${YELLOW}  - Insufficient permissions to create documents${NC}"
-        echo -e "${YELLOW}  - Repository access denied${NC}"
+        echo -e "${RED}  Error: Forbidden (403)${NC}" >&2
+        echo -e "${YELLOW}  Possible causes:${NC}" >&2
+        echo -e "${YELLOW}  - Insufficient permissions to create documents${NC}" >&2
+        echo -e "${YELLOW}  - Repository access denied${NC}" >&2
         ;;
       404)
-        echo -e "${RED}  Error: Not Found (404)${NC}"
-        echo -e "${YELLOW}  Possible causes:${NC}"
-        echo -e "${YELLOW}  - Repository ID incorrect${NC}"
-        echo -e "${YELLOW}  - Invalid API endpoint${NC}"
+        echo -e "${RED}  Error: Not Found (404)${NC}" >&2
+        echo -e "${YELLOW}  Possible causes:${NC}" >&2
+        echo -e "${YELLOW}  - Repository ID incorrect${NC}" >&2
+        echo -e "${YELLOW}  - Invalid API endpoint${NC}" >&2
         ;;
       409)
-        echo -e "${RED}  Error: Conflict (409)${NC}"
-        echo -e "${YELLOW}  Possible causes:${NC}"
-        echo -e "${YELLOW}  - Document with same name already exists${NC}"
+        echo -e "${RED}  Error: Conflict (409)${NC}" >&2
+        echo -e "${YELLOW}  Possible causes:${NC}" >&2
+        echo -e "${YELLOW}  - Document with same name already exists${NC}" >&2
         ;;
       500)
-        echo -e "${RED}  Error: Internal Server Error (500)${NC}"
-        echo -e "${YELLOW}  Possible causes:${NC}"
-        echo -e "${YELLOW}  - SAP DMS service issue${NC}"
-        echo -e "${YELLOW}  - Backend error${NC}"
+        echo -e "${RED}  Error: Internal Server Error (500)${NC}" >&2
+        echo -e "${YELLOW}  Possible causes:${NC}" >&2
+        echo -e "${YELLOW}  - SAP DMS service issue${NC}" >&2
+        echo -e "${YELLOW}  - Backend error${NC}" >&2
+        ;;
+      "")
+        echo -e "${RED}  Error: Empty HTTP code${NC}" >&2
+        echo -e "${YELLOW}  Possible causes:${NC}" >&2
+        echo -e "${YELLOW}  - Curl command failed${NC}" >&2
+        echo -e "${YELLOW}  - Network connectivity issue${NC}" >&2
+        echo -e "${YELLOW}  - Invalid URL or endpoint${NC}" >&2
+        if [[ -n "$CURL_STDERR" ]]; then
+          echo -e "${RED}  Curl error: ${CURL_STDERR}${NC}" >&2
+        fi
         ;;
       *)
-        echo -e "${RED}  Error: Unexpected HTTP code ${HTTP_CODE}${NC}"
+        echo -e "${RED}  Error: Unexpected HTTP code '${HTTP_CODE}'${NC}" >&2
         ;;
     esac
     
     if [[ -n "$RESPONSE_BODY" ]]; then
-      echo -e "${RED}  Full Error Response:${NC}"
-      echo "$RESPONSE_BODY" | jq '.' 2>/dev/null || echo "$RESPONSE_BODY"
+      echo -e "${RED}  Full Error Response:${NC}" >&2
+      echo "$RESPONSE_BODY" | jq '.' 2>/dev/null || echo "$RESPONSE_BODY" >&2
     fi
-    echo -e "${RED}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+    echo -e "${RED}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}" >&2
     return 1
   fi
 }
