@@ -30,13 +30,22 @@ jobs:
           
           echo "📦 Installing Draw.io CLI..."
           # Download and install draw.io desktop (headless mode for CLI)
-          DRAWIO_VERSION="24.7.8"
-          wget -q "https://github.com/jgraph/drawio-desktop/releases/download/v${DRAWIO_VERSION}/drawio-amd64-${DRAWIO_VERSION}.deb"
-          sudo apt-get install -y ./drawio-amd64-${DRAWIO_VERSION}.deb
+          DRAWIO_VERSION="26.0.4"
+          wget -q "https://github.com/jgraph/drawio-desktop/releases/download/v${DRAWIO_VERSION}/drawio-amd64-${DRAWIO_VERSION}.deb" || {
+            echo "⚠️  Failed to download Draw.io v${DRAWIO_VERSION}, trying alternative version..."
+            DRAWIO_VERSION="25.0.2"
+            wget -q "https://github.com/jgraph/drawio-desktop/releases/download/v${DRAWIO_VERSION}/drawio-amd64-${DRAWIO_VERSION}.deb"
+          }
+          
+          sudo apt-get install -y ./drawio-amd64-${DRAWIO_VERSION}.deb || {
+            echo "❌ Failed to install Draw.io package"
+            exit 1
+          }
           rm drawio-amd64-${DRAWIO_VERSION}.deb
           
           # Verify installation
-          drawio --version || echo "⚠️  Draw.io CLI installed but version check failed (this is OK)"
+          which drawio && echo "✅ Draw.io CLI installed successfully"
+          drawio --version || echo "⚠️  Draw.io CLI installed but version check failed (this is OK for headless mode)"
           
           echo "✅ Dependencies installed"
 
