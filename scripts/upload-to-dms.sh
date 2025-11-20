@@ -96,6 +96,33 @@ echo -e "  Upload endpoint: ${DMS_API_URL}/browser/${REPO_ID}/root"
 echo -e "  Token length: ${#ACCESS_TOKEN} characters"
 echo -e "  Token starts with: ${ACCESS_TOKEN:0:20}..."
 
+# Function to get description from previous version in DMS
+get_existing_description() {
+  local base_name="$1"  # e.g., "002_SAP Cloud"
+  
+  echo -e "${BLUE}🔍 Checking for existing description in previous versions...${NC}" >&2
+  
+  # List all documents with this base name
+  local list_response=$(curl -s -X GET \
+    "${DMS_API_URL}/browser/${REPO_ID}/root?cmisselector=children&succinct=true" \
+    -H "Authorization: Bearer ${ACCESS_TOKEN}" \
+    -H "Accept: application/json" 2>/dev/null)
+  
+  # Find files matching this diagram (e.g., 002_SAP Cloud_v*.svg)
+  local existing_description=$(echo "$list_response" | jq -r --arg base "${base_name}_v" \
+    '.objects[]? | 
+     select(.object.succinctProperties."cmis:name" | startswith($base)) | 
+     .object.succinctProperties."cmis:description" // empty' 2>/dev/null | head -n1)
+  
+  if [[ -n "$existing_description" && "$existing_description" != "null" ]]; then
+    echo -e "${GREEN}✅ Found existing description: ${existing_description}${NC}" >&2
+    echo "$existing_description"
+  else
+    echo -e "${YELLOW}⚠️  No existing description found${NC}" >&2
+    echo ""
+  fi
+}
+
 # Function to upload file to DMS
 upload_file() {
   local svg_file="$1"
@@ -110,6 +137,14 @@ upload_file() {
   local description=$(echo "$metadata" | jq -r '.description // ""')
   local category=$(echo "$metadata" | jq -r '.category // "General"')
   
+  # Extract base name for checking existing versions (e.g., "002_SAP Cloud" from "002_SAP Cloud_v20.svg")
+  local base_name=$(echo "$filename" | sed -E 's/_v[0-9]+\.svg$//')
+  
+  # If no description in registry, check DMS for previous version's description
+  if [[ -z "$description" || "$description" == "null" ]]; then
+    description=$(get_existing_description "$base_name")
+  fi
+  
   # Create new file using CMIS Browser Binding API
   # Using the exact format recommended by SAP for createDocument
   echo -e "${BLUE}📤 Uploading to: ${DMS_API_URL}/browser/${REPO_ID}/root${NC}" >&2
@@ -118,6 +153,9 @@ upload_file() {
   echo -e "  File exists: $(if [[ -f "${svg_file}" ]]; then echo "YES"; else echo "NO"; fi)" >&2
   echo -e "  Size: $(stat -f%z "${svg_file}" 2>/dev/null || stat -c%s "${svg_file}" 2>/dev/null || echo "unknown") bytes" >&2
   echo -e "  Filename to upload: ${filename}" >&2
+  if [[ -n "$description" && "$description" != "null" ]]; then
+    echo -e "  Description to apply: ${description}" >&2
+  fi
   
   # Verify file exists before attempting upload
   if [[ ! -f "${svg_file}" ]]; then
@@ -127,20 +165,42 @@ upload_file() {
   
   # Capture curl output properly - redirect stderr to a temp file to avoid contamination
   TEMP_ERR=$(mktemp)
-  UPLOAD_RESPONSE=$(curl -s -w "\n%{http_code}" -X POST \
-    "${DMS_API_URL}/browser/${REPO_ID}/root" \
-    -H "Authorization: Bearer ${ACCESS_TOKEN}" \
-    -H "Accept: application/json" \
-    -F "cmisaction=createDocument" \
-    -F "propertyId[0]=cmis:name" \
-    -F "propertyValue[0]=${filename}" \
-    -F "propertyId[1]=cmis:objectTypeId" \
-    -F "propertyValue[1]=cmis:document" \
-    -F "filename=${filename}" \
-    -F "_charset=UTF-8" \
-    -F "succinct=true" \
-    -F "includeAllowableActions=true" \
-    -F "media=@${svg_file};type=image/svg+xml" 2>"$TEMP_ERR")
+  
+  # Build the curl command with description if available
+  if [[ -n "$description" && "$description" != "null" ]]; then
+    UPLOAD_RESPONSE=$(curl -s -w "\n%{http_code}" -X POST \
+      "${DMS_API_URL}/browser/${REPO_ID}/root" \
+      -H "Authorization: Bearer ${ACCESS_TOKEN}" \
+      -H "Accept: application/json" \
+      -F "cmisaction=createDocument" \
+      -F "propertyId[0]=cmis:name" \
+      -F "propertyValue[0]=${filename}" \
+      -F "propertyId[1]=cmis:objectTypeId" \
+      -F "propertyValue[1]=cmis:document" \
+      -F "propertyId[2]=cmis:description" \
+      -F "propertyValue[2]=${description}" \
+      -F "filename=${filename}" \
+      -F "_charset=UTF-8" \
+      -F "succinct=true" \
+      -F "includeAllowableActions=true" \
+      -F "media=@${svg_file};type=image/svg+xml" 2>"$TEMP_ERR")
+  else
+    UPLOAD_RESPONSE=$(curl -s -w "\n%{http_code}" -X POST \
+      "${DMS_API_URL}/browser/${REPO_ID}/root" \
+      -H "Authorization: Bearer ${ACCESS_TOKEN}" \
+      -H "Accept: application/json" \
+      -F "cmisaction=createDocument" \
+      -F "propertyId[0]=cmis:name" \
+      -F "propertyValue[0]=${filename}" \
+      -F "propertyId[1]=cmis:objectTypeId" \
+      -F "propertyValue[1]=cmis:document" \
+      -F "filename=${filename}" \
+      -F "_charset=UTF-8" \
+      -F "succinct=true" \
+      -F "includeAllowableActions=true" \
+      -F "media=@${svg_file};type=image/svg+xml" 2>"$TEMP_ERR")
+  fi
+  
   CURL_STDERR=$(cat "$TEMP_ERR")
   rm -f "$TEMP_ERR"
   
