@@ -57,10 +57,28 @@ fi
 echo -e "${BLUE}ℹ️  Using repository ID: ${DMS_REPOSITORY_ID}${NC}"
 REPO_ID="$DMS_REPOSITORY_ID"
 
+# Function to build correct API URL based on whether repository ID is already in base URL
+# Supports both formats:
+# - Old: https://api-sdm-di.cfapps.eu10.hana.ondemand.com + /browser/{repoId}/root
+# - New: https://api-sdm-di.cfapps.eu10.hana.ondemand.com/browser/{repoId} + /root
+build_api_url() {
+  local endpoint="$1"
+  
+  # Check if the base URL already contains /browser/{repositoryId}
+  if [[ "$DMS_API_URL" == *"/browser/${REPO_ID}"* ]]; then
+    # New format: URL already has repository ID, just append endpoint
+    echo "${DMS_API_URL}${endpoint}"
+  else
+    # Old format: Need to add /browser/{repositoryId} before endpoint
+    echo "${DMS_API_URL}/browser/${REPO_ID}${endpoint}"
+  fi
+}
+
 # Troubleshooting: Test repository connection using repositoryInfo endpoint
 echo -e "${BLUE}🔍 Testing repository connection...${NC}"
+REPO_TEST_URL=$(build_api_url "/root?cmisselector=object")
 REPO_TEST=$(curl -s -w "\n%{http_code}" -X GET \
-  "${DMS_API_URL}/${REPO_ID}/root?cmisselector=object" \
+  "${REPO_TEST_URL}" \
   -H "Authorization: Bearer ${ACCESS_TOKEN}" \
   -H "Accept: application/json" 2>&1)
 
@@ -89,22 +107,24 @@ else
 fi
 
 # Troubleshooting: List repository info
+UPLOAD_ENDPOINT=$(build_api_url "/root")
 echo -e "${BLUE}🔍 DMS Configuration:${NC}"
 echo -e "  API URL: ${DMS_API_URL}"
 echo -e "  Repository ID: ${REPO_ID}"
-echo -e "  Upload endpoint: ${DMS_API_URL}/browser/${REPO_ID}/root"
+echo -e "  Upload endpoint: ${UPLOAD_ENDPOINT}"
 echo -e "  Token length: ${#ACCESS_TOKEN} characters"
 echo -e "  Token starts with: ${ACCESS_TOKEN:0:20}..."
 
-# Function to get description from previous version in DMS
+  # Function to get description from previous version in DMS
 get_existing_description() {
   local base_name="$1"  # e.g., "002_SAP Cloud"
   
   echo -e "${BLUE}🔍 Checking for existing description in previous versions...${NC}" >&2
   
   # List all documents with this base name
+  local list_url=$(build_api_url "/root?cmisselector=children&succinct=true")
   local list_response=$(curl -s -X GET \
-    "${DMS_API_URL}/browser/${REPO_ID}/root?cmisselector=children&succinct=true" \
+    "${list_url}" \
     -H "Authorization: Bearer ${ACCESS_TOKEN}" \
     -H "Accept: application/json" 2>/dev/null)
   
@@ -147,7 +167,8 @@ upload_file() {
   
   # Create new file using CMIS Browser Binding API
   # Using the exact format recommended by SAP for createDocument
-  echo -e "${BLUE}📤 Uploading to: ${DMS_API_URL}/browser/${REPO_ID}/root${NC}" >&2
+  local upload_url=$(build_api_url "/root")
+  echo -e "${BLUE}📤 Uploading to: ${upload_url}${NC}" >&2
   echo -e "${BLUE}🔍 File details:${NC}" >&2
   echo -e "  File path: ${svg_file}" >&2
   echo -e "  File exists: $(if [[ -f "${svg_file}" ]]; then echo "YES"; else echo "NO"; fi)" >&2
@@ -169,7 +190,7 @@ upload_file() {
   # Build the curl command with description if available
   if [[ -n "$description" && "$description" != "null" ]]; then
     UPLOAD_RESPONSE=$(curl -s -w "\n%{http_code}" -X POST \
-      "${DMS_API_URL}/browser/${REPO_ID}/root" \
+      "${upload_url}" \
       -H "Authorization: Bearer ${ACCESS_TOKEN}" \
       -H "Accept: application/json" \
       -F "cmisaction=createDocument" \
@@ -186,7 +207,7 @@ upload_file() {
       -F "media=@${svg_file};type=image/svg+xml" 2>"$TEMP_ERR")
   else
     UPLOAD_RESPONSE=$(curl -s -w "\n%{http_code}" -X POST \
-      "${DMS_API_URL}/browser/${REPO_ID}/root" \
+      "${upload_url}" \
       -H "Authorization: Bearer ${ACCESS_TOKEN}" \
       -H "Accept: application/json" \
       -F "cmisaction=createDocument" \

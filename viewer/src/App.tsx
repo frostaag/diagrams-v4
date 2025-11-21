@@ -1,10 +1,10 @@
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { Search, Folder, RefreshCw, Cloud, HardDrive } from 'lucide-react';
-import { getDiagrams, groupDiagramsByCategory, searchDiagrams } from '@/services/diagramService';
-import { getDiagramsFromDMS, isDMSConfigured, groupDiagramsByCategory as groupDMSDiagrams, searchDiagrams as searchDMSDiagrams } from '@/services/dmsService';
+import { Search, Folder, RefreshCw } from 'lucide-react';
 import { DiagramCard } from '@/components/DiagramCard';
 import { DiagramModal } from '@/components/DiagramModal';
+import { getDiagramsFromDMS, isDMSConfigured, groupDiagramsByCategory, searchDiagrams } from '@/services/dmsService';
+import { getDiagrams, groupDiagramsByCategory as groupLocalDiagrams, searchDiagrams as searchLocalDiagrams } from '@/services/diagramService';
 import type { Diagram } from '@/types/diagram';
 
 function App() {
@@ -36,10 +36,10 @@ function App() {
   };
 
   const filteredDiagrams = searchTerm
-    ? searchDiagrams(diagrams, searchTerm)
+    ? (useDMS ? searchDiagrams(diagrams, searchTerm) : searchLocalDiagrams(diagrams, searchTerm))
     : diagrams;
 
-  const groupedDiagrams = groupDiagramsByCategory(filteredDiagrams);
+  const groupedDiagrams = useDMS ? groupDiagramsByCategory(filteredDiagrams) : groupLocalDiagrams(filteredDiagrams);
 
   if (isLoading) {
     return (

@@ -57,7 +57,27 @@ async function getAccessToken(): Promise<string> {
   // Set expiry (typically 12 hours, but we'll refresh earlier)
   tokenExpiry = Date.now() + ((data.expires_in || 43200) * 1000);
   
-  return cachedToken;
+  return cachedToken!;
+}
+
+/**
+ * Build the correct API URL based on whether repository ID is already in the base URL
+ * Supports both formats:
+ * - Old: https://api-sdm-di.cfapps.eu10.hana.ondemand.com + /browser/{repoId}/root
+ * - New: https://api-sdm-di.cfapps.eu10.hana.ondemand.com/browser/{repoId} + /root
+ */
+function buildApiUrl(endpoint: string): string {
+  const baseUrl = DMS_CONFIG.apiUrl;
+  const repoId = DMS_CONFIG.repositoryId;
+  
+  // Check if the base URL already contains /browser/{repositoryId}
+  if (baseUrl.includes(`/browser/${repoId}`)) {
+    // New format: URL already has repository ID, just append endpoint
+    return `${baseUrl}${endpoint}`;
+  } else {
+    // Old format: Need to add /browser/{repositoryId} before endpoint
+    return `${baseUrl}/browser/${repoId}${endpoint}`;
+  }
 }
 
 /**
@@ -66,15 +86,14 @@ async function getAccessToken(): Promise<string> {
 async function listDocuments(): Promise<DMSDocument[]> {
   const token = await getAccessToken();
   
-  const response = await fetch(
-    `${DMS_CONFIG.apiUrl}/browser/${DMS_CONFIG.repositoryId}/root?cmisselector=children&succinct=true`,
-    {
-      headers: {
-        'Authorization': `Bearer ${token}`,
-        'Accept': 'application/json',
-      },
-    }
-  );
+  const url = buildApiUrl('/root?cmisselector=children&succinct=true');
+  
+  const response = await fetch(url, {
+    headers: {
+      'Authorization': `Bearer ${token}`,
+      'Accept': 'application/json',
+    },
+  });
 
   if (!response.ok) {
     throw new Error(`Failed to list documents: ${response.statusText}`);
@@ -88,7 +107,7 @@ async function listDocuments(): Promise<DMSDocument[]> {
  * Get document content URL
  */
 function getDocumentUrl(objectId: string, token: string | null): string {
-  return `${DMS_CONFIG.apiUrl}/browser/${DMS_CONFIG.repositoryId}/root?objectId=${objectId}&cmisselector=content&download=inline&access_token=${token || ''}`;
+  return buildApiUrl(`/root?objectId=${objectId}&cmisselector=content&download=inline&access_token=${token || ''}`);
 }
 
 /**

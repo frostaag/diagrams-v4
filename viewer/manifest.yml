@@ -7,7 +7,6 @@ applications:
     memory: 128M
     disk_quota: 256M
     instances: 1
-    routes:
-      - route: diagrams-viewer-${random-word}.${default-domain}
+    random-route: true
     env:
       FORCE_HTTPS: true

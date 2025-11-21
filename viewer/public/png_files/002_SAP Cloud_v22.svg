@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="800" height="600" viewBox="0 0 800 600">
+  <rect width="800" height="600" fill="#f8f9fa"/>
+  <text x="400" y="250" font-family="Arial, sans-serif" font-size="24" text-anchor="middle" fill="#333">
+    Diagram: 002_SAP Cloud.drawio
+  </text>
+  <text x="400" y="300" font-family="Arial, sans-serif" font-size="18" text-anchor="middle" fill="#666">
+    Please open in Draw.io to view
+  </text>
+  <text x="400" y="350" font-family="Arial, sans-serif" font-size="16" text-anchor="middle" fill="#999">
+    Conversion requires: Draw.io Desktop app or drawio CLI
+  </text>
+</svg>

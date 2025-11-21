@@ -1,7 +1,7 @@
 import type { DiagramRegistry, Diagram } from '@/types/diagram';
 
-const REGISTRY_PATH = '../diagram-registry.json';
-const PNG_BASE_PATH = '../png_files/';
+const REGISTRY_PATH = '/diagram-registry.json';
+const PNG_BASE_PATH = '/png_files/';
 
 export async function fetchDiagramRegistry(): Promise<DiagramRegistry> {
   const response = await fetch(REGISTRY_PATH);

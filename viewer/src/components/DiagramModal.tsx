@@ -1,4 +1,4 @@
-import { X, Download, ExternalLink, Calendar, User, GitCommit } from 'lucide-react';
+import { X, Download, ExternalLink, Calendar } from 'lucide-react';
 import type { Diagram } from '@/types/diagram';
 import { getDiagramImageUrl } from '@/services/diagramService';
 
