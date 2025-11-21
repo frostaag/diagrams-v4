@@ -29,7 +29,6 @@ jobs:
           sudo apt-get install -y curl jq xvfb libgbm1 libasound2t64 libxss1 libnss3 libgtk-3-0
           
           echo "📦 Installing Draw.io CLI..."
-          # Download and install draw.io desktop (headless mode for CLI)
           DRAWIO_VERSION="26.0.4"
           wget -q "https://github.com/jgraph/drawio-desktop/releases/download/v${DRAWIO_VERSION}/drawio-amd64-${DRAWIO_VERSION}.deb" || {
             echo "⚠️  Failed to download Draw.io v${DRAWIO_VERSION}, trying alternative version..."
@@ -43,43 +42,36 @@ jobs:
           }
           rm drawio-amd64-${DRAWIO_VERSION}.deb
           
-          # Verify installation
           which drawio && echo "✅ Draw.io CLI installed successfully"
           
-          # Test conversion with a simple diagram
           echo "🧪 Testing Draw.io CLI..."
-          cat > /tmp/test.drawio << 'DRAWIO_EOF'
-          <?xml version="1.0" encoding="UTF-8"?>
-          <mxfile host="Electron" modified="2024-01-01T00:00:00.000Z" agent="5.0" version="21.1.2" etag="test">
-            <diagram name="Test" id="test">
-              <mxGraphModel dx="800" dy="600" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="827" pageHeight="1169" math="0" shadow="0">
-                <root>
-                  <mxCell id="0" />
-                  <mxCell id="1" parent="0" />
-                  <mxCell id="2" value="Test" style="rounded=1;whiteSpace=wrap;html=1;" vertex="1" parent="1">
-                    <mxGeometry x="340" y="280" width="120" height="60" as="geometry" />
-                  </mxCell>
-                </root>
-              </mxGraphModel>
-            </diagram>
-          </mxfile>
-          DRAWIO_EOF
+          echo '<?xml version="1.0" encoding="UTF-8"?><mxfile host="Electron" modified="2024-01-01T00:00:00.000Z" agent="5.0" version="21.1.2"><diagram name="Test" id="test"><mxGraphModel dx="800" dy="600" grid="1" gridSize="10" guides="1"><root><mxCell id="0" /><mxCell id="1" parent="0" /><mxCell id="2" value="Test" style="rounded=1;whiteSpace=wrap;html=1;" vertex="1" parent="1"><mxGeometry x="340" y="280" width="120" height="60" as="geometry" /></mxCell></root></mxGraphModel></diagram></mxfile>' > test.drawio
           
-          # Run test with proper error capture
-          echo "   Running: xvfb-run -a drawio --no-sandbox --disable-gpu -x -f svg -o /tmp/test.svg /tmp/test.drawio"
-          if xvfb-run -a drawio --no-sandbox --disable-gpu -x -f svg -o /tmp/test.svg /tmp/test.drawio 2>&1 | grep -v "ERROR:bus.cc\|ERROR:viz_main_impl.cc"; then
-            if [[ -f /tmp/test.svg ]] && [[ -s /tmp/test.svg ]]; then
+          if [[ ! -f test.drawio ]]; then
+            echo "❌ Failed to create test.drawio"
+            exit 1
+          fi
+          
+          echo "   Created test.drawio ($(wc -c < test.drawio) bytes)"
+          
+          TEST_FILE="$(pwd)/test.drawio"
+          TEST_SVG="$(pwd)/test.svg"
+          
+          echo "   Running: xvfb-run -a drawio --no-sandbox --disable-gpu -x -f svg -o test.svg test.drawio"
+          
+          if xvfb-run -a drawio --no-sandbox --disable-gpu -x -f svg -o test.svg test.drawio 2>&1 | grep -v "ERROR:bus.cc\|ERROR:viz_main_impl.cc\|Checking for beta"; then
+            if [[ -f test.svg ]] && [[ -s test.svg ]]; then
               echo "✅ Draw.io CLI test successful"
-              cat /tmp/test.svg | head -5
-              rm -f /tmp/test.drawio /tmp/test.svg
+              echo "   Generated SVG ($(wc -c < test.svg) bytes)"
+              rm -f test.drawio test.svg
             else
               echo "❌ Draw.io CLI test failed - no output file created"
-              ls -la /tmp/test.* 2>/dev/null || echo "   No test files found"
+              ls -la test.* 2>/dev/null || true
               exit 1
             fi
           else
             echo "❌ Draw.io CLI test failed - command error"
-            ls -la /tmp/test.* 2>/dev/null || echo "   No test files found"
+            ls -la test.* 2>/dev/null || true
             exit 1
           fi
           
@@ -91,7 +83,6 @@ jobs:
         run: |
           echo "🔄 Running diagram processing..."
           
-          # Check if there are any .drawio files to process
           if [[ -z "$(find drawio_files -name "*.drawio" -type f 2>/dev/null)" ]]; then
             echo "ℹ️  No .drawio files found to process"
             echo "processed=0" >> $GITHUB_OUTPUT
@@ -100,7 +91,6 @@ jobs:
           
           ./scripts/convert.sh
           
-          # Get processing stats
           if [[ -f "diagram-registry.json" ]]; then
             total_diagrams=$(jq '.diagrams | length' diagram-registry.json)
             echo "processed=$total_diagrams" >> $GITHUB_OUTPUT
@@ -114,13 +104,11 @@ jobs:
           git config --local user.email "action@github.com"
           git config --local user.name "GitHub Action"
           
-          # Add all changed files (only if directories exist)
           git add drawio_files/ 2>/dev/null || true
           git add svg_files/ 2>/dev/null || true
           [[ -d png_files ]] && git add png_files/ 2>/dev/null || true
           git add diagram-registry.json 2>/dev/null || true
           
-          # Check if there are changes to commit
           if git diff --staged --quiet; then
             echo "⚠️  No changes to commit"
           else
@@ -131,18 +119,15 @@ jobs:
       - name: Push Changes
         if: always()
         run: |
-          # Try to push changes
           if git log origin/main..HEAD --oneline | grep -q .; then
             echo "📤 Pushing changes..."
             
-            # Pull with rebase to avoid conflicts
             git pull --rebase origin main || {
               echo "⚠️  Rebase conflict, attempting merge strategy..."
               git rebase --abort
               git pull --no-rebase origin main
             }
             
-            # Push changes
             git push origin main || {
               echo "❌ Push failed, trying force-with-lease..."
               git push --force-with-lease origin main
@@ -192,49 +177,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
         
-      - name: Send Failure Notification
-        env:
-          TEAMS_WEBHOOK_URL: ${{ vars.DIAGRAMS_TEAMS_NOTIFICATION_WEBHOOK }}
+      - name: Log Failure
         run: |
-          if [[ -z "$TEAMS_WEBHOOK_URL" ]]; then
-            echo "⚠️  Teams webhook not configured"
-            exit 0
-          fi
-          
-          commit_hash=$(git log -1 --format="%h" 2>/dev/null || echo "unknown")
-          author_name=$(git log -1 --format="%an" 2>/dev/null || echo "Unknown")
-          commit_message=$(git log -1 --format="%s" 2>/dev/null || echo "Unknown")
-          
-          # Escape for JSON
-          escaped_author=$(echo "$author_name" | sed 's/"/\\"/g')
-          escaped_message=$(echo "$commit_message" | sed 's/"/\\"/g')
-          
-          curl -s -X POST "$TEAMS_WEBHOOK_URL" \
-            -H "Content-Type: application/json" \
-            -d "{
-              \"@type\": \"MessageCard\",
-              \"@context\": \"https://schema.org/extensions\",
-              \"summary\": \"Diagrams-v4 Processing Failed\",
-              \"themeColor\": \"dc3545\",
-              \"title\": \"❌ Diagrams-v4 Processing Failed\",
-              \"text\": \"The diagram processing workflow encountered an error.\",
-              \"sections\": [{
-                \"activityTitle\": \"📋 Error Details\",
-                \"facts\": [
-                  {\"name\": \"👤 Author\", \"value\": \"$escaped_author\"},
-                  {\"name\": \"📝 Commit\", \"value\": \"$commit_hash\"},
-                  {\"name\": \"💬 Message\", \"value\": \"$escaped_message\"},
-                  {\"name\": \"🔄 Run\", \"value\": \"#${{ github.run_number }}\"}
-                ]
-              }],
-              \"potentialAction\": [{
-                \"@type\": \"OpenUri\",
-                \"name\": \"🔍 View Details\",
-                \"targets\": [{
-                  \"os\": \"default\",
-                  \"uri\": \"${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}\"
-                }]
-              }]
-            }"
-          
-          echo "✅ Failure notification sent"
+          echo "❌ Diagram processing workflow failed"
+          echo "Check the process job logs for details"
