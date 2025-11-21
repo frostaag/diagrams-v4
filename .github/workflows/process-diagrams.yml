@@ -48,18 +48,38 @@ jobs:
           
           # Test conversion with a simple diagram
           echo "🧪 Testing Draw.io CLI..."
-          echo '<?xml version="1.0" encoding="UTF-8"?><mxfile><diagram name="test"><mxGraphModel><root><mxCell id="0"/><mxCell id="1" parent="0"/></root></mxGraphModel></diagram></mxfile>' > /tmp/test.drawio
+          cat > /tmp/test.drawio << 'DRAWIO_EOF'
+          <?xml version="1.0" encoding="UTF-8"?>
+          <mxfile host="Electron" modified="2024-01-01T00:00:00.000Z" agent="5.0" version="21.1.2" etag="test">
+            <diagram name="Test" id="test">
+              <mxGraphModel dx="800" dy="600" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="827" pageHeight="1169" math="0" shadow="0">
+                <root>
+                  <mxCell id="0" />
+                  <mxCell id="1" parent="0" />
+                  <mxCell id="2" value="Test" style="rounded=1;whiteSpace=wrap;html=1;" vertex="1" parent="1">
+                    <mxGeometry x="340" y="280" width="120" height="60" as="geometry" />
+                  </mxCell>
+                </root>
+              </mxGraphModel>
+            </diagram>
+          </mxfile>
+          DRAWIO_EOF
           
-          if xvfb-run -a drawio --no-sandbox --disable-gpu -x -f svg -o /tmp/test.svg /tmp/test.drawio 2>&1; then
+          # Run test with proper error capture
+          echo "   Running: xvfb-run -a drawio --no-sandbox --disable-gpu -x -f svg -o /tmp/test.svg /tmp/test.drawio"
+          if xvfb-run -a drawio --no-sandbox --disable-gpu -x -f svg -o /tmp/test.svg /tmp/test.drawio 2>&1 | grep -v "ERROR:bus.cc\|ERROR:viz_main_impl.cc"; then
             if [[ -f /tmp/test.svg ]] && [[ -s /tmp/test.svg ]]; then
               echo "✅ Draw.io CLI test successful"
-              rm /tmp/test.drawio /tmp/test.svg
+              cat /tmp/test.svg | head -5
+              rm -f /tmp/test.drawio /tmp/test.svg
             else
-              echo "❌ Draw.io CLI test failed - no output file"
+              echo "❌ Draw.io CLI test failed - no output file created"
+              ls -la /tmp/test.* 2>/dev/null || echo "   No test files found"
               exit 1
             fi
           else
-            echo "❌ Draw.io CLI test failed"
+            echo "❌ Draw.io CLI test failed - command error"
+            ls -la /tmp/test.* 2>/dev/null || echo "   No test files found"
             exit 1
           fi
           
