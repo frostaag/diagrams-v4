@@ -153,7 +153,19 @@ convert_to_svg() {
   local drawio_file="$1"
   local svg_file="$2"
   
+  # Convert to absolute paths
+  local abs_drawio_file="$(cd "$(dirname "$drawio_file")" && pwd)/$(basename "$drawio_file")"
+  local abs_svg_file="$(cd "$(dirname "$svg_file")" && pwd)/$(basename "$svg_file")"
+  
   echo "🎨 Converting diagram to SVG..."
+  echo "   Input:  $abs_drawio_file"
+  echo "   Output: $abs_svg_file"
+  
+  # Verify input file exists
+  if [[ ! -f "$abs_drawio_file" ]]; then
+    echo "   ❌ Input file not found: $abs_drawio_file"
+    return 1
+  fi
   
   # Method 1: Try drawio CLI if available
   if command -v drawio &> /dev/null; then
@@ -167,13 +179,13 @@ convert_to_svg() {
       # Create a temporary log file
       local temp_log=$(mktemp)
       
-      # Run conversion with proper flags for headless Chrome/Electron
-      xvfb-run -a drawio --no-sandbox --disable-gpu --disable-dev-shm-usage --disable-software-rasterizer -x -f svg -o "$svg_file" "$drawio_file" > "$temp_log" 2>&1
+      # Run conversion with proper flags for headless Chrome/Electron using ABSOLUTE paths
+      xvfb-run -a drawio --no-sandbox --disable-gpu --disable-dev-shm-usage --disable-software-rasterizer -x -f svg -o "$abs_svg_file" "$abs_drawio_file" > "$temp_log" 2>&1
       local exit_code=$?
       
-      # Show output for debugging
-      if [[ $exit_code -ne 0 ]]; then
-        echo "   ⚠️  Draw.io exit code: $exit_code"
+      # Show full output for debugging
+      echo "   Draw.io exit code: $exit_code"
+      if [[ -s "$temp_log" ]]; then
         echo "   Output:"
         cat "$temp_log" | grep -v "ERROR:bus.cc\|ERROR:viz_main_impl.cc\|libva error" || true
       fi
@@ -182,20 +194,23 @@ convert_to_svg() {
       rm -f "$temp_log"
       
       # Check if file was created successfully regardless of exit code
-      if [[ -f "$svg_file" ]] && [[ -s "$svg_file" ]]; then
+      if [[ -f "$abs_svg_file" ]] && [[ -s "$abs_svg_file" ]]; then
         # Verify it's actually SVG content (not placeholder)
-        if grep -q "<svg" "$svg_file" && ! grep -q "Please open in Draw.io to view" "$svg_file"; then
+        if grep -q "<svg" "$abs_svg_file" && ! grep -q "Please open in Draw.io to view" "$abs_svg_file"; then
           echo "   ✅ Success with drawio CLI (headless)"
           return 0
         else
           echo "   ❌ Generated file is not valid SVG"
-          rm -f "$svg_file"
+          rm -f "$abs_svg_file"
         fi
+      else
+        echo "   ❌ No output file generated"
+        ls -lah "$(dirname "$abs_svg_file")" || true
       fi
     else
       # Try without xvfb-run (local environment with display)
-      if drawio -x -f svg -o "$svg_file" "$drawio_file" 2>/dev/null; then
-        if [[ -f "$svg_file" ]] && [[ -s "$svg_file" ]]; then
+      if drawio -x -f svg -o "$abs_svg_file" "$abs_drawio_file" 2>/dev/null; then
+        if [[ -f "$abs_svg_file" ]] && [[ -s "$abs_svg_file" ]]; then
           echo "   ✅ Success with drawio CLI"
           return 0
         fi
@@ -206,8 +221,8 @@ convert_to_svg() {
   # Method 2: Try using diagrams.net desktop app if installed
   if [[ -d "/Applications/draw.io.app" ]]; then
     echo "   Using Draw.io Desktop app..."
-    if /Applications/draw.io.app/Contents/MacOS/draw.io -x -f svg -o "$svg_file" "$drawio_file" 2>/dev/null; then
-      if [[ -f "$svg_file" ]] && [[ -s "$svg_file" ]]; then
+    if /Applications/draw.io.app/Contents/MacOS/draw.io -x -f svg -o "$abs_svg_file" "$abs_drawio_file" 2>/dev/null; then
+      if [[ -f "$abs_svg_file" ]] && [[ -s "$abs_svg_file" ]]; then
         echo "   ✅ Success with Draw.io app"
         return 0
       fi
@@ -218,7 +233,7 @@ convert_to_svg() {
   echo "   ⚠️  No conversion method available, creating placeholder..."
   
   # Create a simple SVG placeholder
-  cat > "$svg_file" << EOF
+  cat > "$abs_svg_file" << EOF
 <?xml version="1.0" encoding="UTF-8"?>
 <svg xmlns="http://www.w3.org/2000/svg" width="800" height="600" viewBox="0 0 800 600">
   <rect width="800" height="600" fill="#f8f9fa"/>
@@ -234,7 +249,7 @@ convert_to_svg() {
 </svg>
 EOF
   
-  if [[ -f "$svg_file" ]] && [[ -s "$svg_file" ]]; then
+  if [[ -f "$abs_svg_file" ]] && [[ -s "$abs_svg_file" ]]; then
     echo "   📝 Created placeholder SVG"
     return 0
   fi
