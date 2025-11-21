@@ -26,7 +26,7 @@ jobs:
         run: |
           echo "🔧 Installing required tools..."
           sudo apt-get update
-          sudo apt-get install -y curl jq xvfb libgbm1 libasound2t64
+          sudo apt-get install -y curl jq xvfb libgbm1 libasound2t64 libxss1 libnss3 libgtk-3-0
           
           echo "📦 Installing Draw.io CLI..."
           # Download and install draw.io desktop (headless mode for CLI)
@@ -45,9 +45,25 @@ jobs:
           
           # Verify installation
           which drawio && echo "✅ Draw.io CLI installed successfully"
-          drawio --version || echo "⚠️  Draw.io CLI installed but version check failed (this is OK for headless mode)"
           
-          echo "✅ Dependencies installed"
+          # Test conversion with a simple diagram
+          echo "🧪 Testing Draw.io CLI..."
+          echo '<?xml version="1.0" encoding="UTF-8"?><mxfile><diagram name="test"><mxGraphModel><root><mxCell id="0"/><mxCell id="1" parent="0"/></root></mxGraphModel></diagram></mxfile>' > /tmp/test.drawio
+          
+          if xvfb-run -a drawio --no-sandbox --disable-gpu -x -f svg -o /tmp/test.svg /tmp/test.drawio 2>&1; then
+            if [[ -f /tmp/test.svg ]] && [[ -s /tmp/test.svg ]]; then
+              echo "✅ Draw.io CLI test successful"
+              rm /tmp/test.drawio /tmp/test.svg
+            else
+              echo "❌ Draw.io CLI test failed - no output file"
+              exit 1
+            fi
+          else
+            echo "❌ Draw.io CLI test failed"
+            exit 1
+          fi
+          
+          echo "✅ Dependencies installed and tested"
 
       - name: Process Diagrams
         id: process

@@ -161,19 +161,36 @@ convert_to_svg() {
     
     # Check if running in headless environment (like GitHub Actions)
     if command -v xvfb-run &> /dev/null; then
-      # Use xvfb-run for headless display
-      # Redirect stderr to suppress GPU/bus errors (non-fatal in headless mode)
-      if xvfb-run -a drawio -x -f svg -o "$svg_file" "$drawio_file" 2>&1 | grep -v "ERROR:bus.cc\|ERROR:viz_main_impl.cc" > /dev/null; then
-        # Check if file was created successfully regardless of warnings
-        if [[ -f "$svg_file" ]] && [[ -s "$svg_file" ]]; then
+      # Use xvfb-run for headless display with proper flags
+      echo "   Running in headless mode with xvfb..."
+      
+      # Create a temporary log file
+      local temp_log=$(mktemp)
+      
+      # Run conversion with proper flags for headless Chrome/Electron
+      xvfb-run -a drawio --no-sandbox --disable-gpu --disable-dev-shm-usage --disable-software-rasterizer -x -f svg -o "$svg_file" "$drawio_file" > "$temp_log" 2>&1
+      local exit_code=$?
+      
+      # Show output for debugging
+      if [[ $exit_code -ne 0 ]]; then
+        echo "   ⚠️  Draw.io exit code: $exit_code"
+        echo "   Output:"
+        cat "$temp_log" | grep -v "ERROR:bus.cc\|ERROR:viz_main_impl.cc\|libva error" || true
+      fi
+      
+      # Clean up log
+      rm -f "$temp_log"
+      
+      # Check if file was created successfully regardless of exit code
+      if [[ -f "$svg_file" ]] && [[ -s "$svg_file" ]]; then
+        # Verify it's actually SVG content (not placeholder)
+        if grep -q "<svg" "$svg_file" && ! grep -q "Please open in Draw.io to view" "$svg_file"; then
           echo "   ✅ Success with drawio CLI (headless)"
           return 0
+        else
+          echo "   ❌ Generated file is not valid SVG"
+          rm -f "$svg_file"
         fi
-      fi
-      # Fallback: Check if file exists even if command reported errors
-      if [[ -f "$svg_file" ]] && [[ -s "$svg_file" ]]; then
-        echo "   ✅ Success with drawio CLI (headless, with warnings)"
-        return 0
       fi
     else
       # Try without xvfb-run (local environment with display)
