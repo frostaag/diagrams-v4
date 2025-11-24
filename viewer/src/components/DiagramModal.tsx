@@ -96,84 +96,84 @@ export function DiagramModal({ diagram, isOpen, onClose, onDescriptionSaved }: D
                 <h3 className="text-sm font-semibold text-gray-700 mb-3">Details</h3>
                 <dl className="space-y-3">
                   {/* Editable Description */}
-                  <div className="flex flex-col gap-2 text-sm">
-                    <div className="flex items-center justify-between">
-                      <dt className="text-gray-500 font-medium">Description:</dt>
-                      {!isEditingDescription && (
-                        <button
-                          onClick={() => {
-                            setIsEditingDescription(true);
-                            setEditedDescription(description);
-                          }}
-                          className="text-sap-blue hover:text-sap-dark-blue transition-colors"
-                          title="Edit description"
-                        >
-                          <Edit2 className="w-4 h-4" />
-                        </button>
-                      )}
-                    </div>
-                    {isEditingDescription ? (
-                      <div className="flex flex-col gap-2">
-                        <textarea
-                          value={editedDescription}
-                          onChange={(e) => setEditedDescription(e.target.value)}
-                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-sap-blue focus:border-sap-blue resize-none"
-                          rows={3}
-                          placeholder="Enter description..."
-                        />
-                        <div className="flex gap-2">
+                  <div className="text-sm">
+                    <div className="flex items-center gap-3">
+                      <dt className="text-gray-500 font-medium min-w-[110px]">Description:</dt>
+                      {isEditingDescription ? (
+                        <div className="flex-1 flex flex-col gap-2">
+                          <textarea
+                            value={editedDescription}
+                            onChange={(e) => setEditedDescription(e.target.value)}
+                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-sap-blue focus:border-sap-blue resize-none"
+                            rows={2}
+                            placeholder="Enter description..."
+                          />
+                          <div className="flex gap-2">
+                            <button
+                              onClick={() => {
+                                setIsSaving(true);
+                                // Save to localStorage
+                                saveDescription(diagram.id, editedDescription);
+                                
+                                // Update current description immediately
+                                setCurrentDescription(editedDescription);
+                                
+                                // Show saved indicator
+                                setTimeout(() => {
+                                  setIsSaving(false);
+                                  setIsEditingDescription(false);
+                                  setShowSaved(true);
+                                  
+                                  // Call parent refetch to update the diagram for other instances
+                                  if (onDescriptionSaved) {
+                                    onDescriptionSaved();
+                                  }
+                                  
+                                  // Hide saved indicator after 2 seconds
+                                  setTimeout(() => {
+                                    setShowSaved(false);
+                                  }, 2000);
+                                }, 300);
+                              }}
+                              disabled={isSaving}
+                              className="inline-flex items-center gap-2 px-3 py-1.5 bg-sap-blue text-white text-sm rounded hover:bg-sap-dark-blue transition-colors disabled:opacity-50"
+                            >
+                              {showSaved ? (
+                                <>
+                                  <Check className="w-3.5 h-3.5" />
+                                  Saved!
+                                </>
+                              ) : (
+                                <>
+                                  <Save className="w-3.5 h-3.5" />
+                                  {isSaving ? 'Saving...' : 'Save'}
+                                </>
+                              )}
+                            </button>
+                            <button
+                              onClick={() => setIsEditingDescription(false)}
+                              className="px-3 py-1.5 bg-gray-200 text-gray-700 text-sm rounded hover:bg-gray-300 transition-colors"
+                            >
+                              Cancel
+                            </button>
+                          </div>
+                        </div>
+                      ) : (
+                        <>
+                          <dd className="flex-1 font-medium text-gray-900">{description}</dd>
                           <button
                             onClick={() => {
-                              setIsSaving(true);
-                              // Save to localStorage
-                              saveDescription(diagram.id, editedDescription);
-                              
-                              // Update current description immediately
-                              setCurrentDescription(editedDescription);
-                              
-                              // Show saved indicator
-                              setTimeout(() => {
-                                setIsSaving(false);
-                                setIsEditingDescription(false);
-                                setShowSaved(true);
-                                
-                                // Call parent refetch to update the diagram for other instances
-                                if (onDescriptionSaved) {
-                                  onDescriptionSaved();
-                                }
-                                
-                                // Hide saved indicator after 2 seconds
-                                setTimeout(() => {
-                                  setShowSaved(false);
-                                }, 2000);
-                              }, 300);
+                              setIsEditingDescription(true);
+                              setEditedDescription(description);
                             }}
-                            disabled={isSaving}
-                            className="inline-flex items-center gap-2 px-3 py-1.5 bg-sap-blue text-white text-sm rounded hover:bg-sap-dark-blue transition-colors disabled:opacity-50"
+                            className="text-sap-blue hover:text-sap-dark-blue transition-colors"
+                            title="Edit description"
                           >
-                            {showSaved ? (
-                              <>
-                                <Check className="w-3.5 h-3.5" />
-                                Saved!
-                              </>
-                            ) : (
-                              <>
-                                <Save className="w-3.5 h-3.5" />
-                                {isSaving ? 'Saving...' : 'Save'}
-                              </>
-                            )}
+                            <Edit2 className="w-4 h-4" />
                           </button>
-                          <button
-                            onClick={() => setIsEditingDescription(false)}
-                            className="px-3 py-1.5 bg-gray-200 text-gray-700 text-sm rounded hover:bg-gray-300 transition-colors"
-                          >
-                            Cancel
-                          </button>
-                        </div>
-                      </div>
-                    ) : (
-                      <dd className="font-medium text-gray-900">{description}</dd>
-                    )}
+                        </>
+                      )}
+                    </div>
                   </div>
                   
                   <div className="flex items-center gap-2 text-sm">
@@ -182,34 +182,20 @@ export function DiagramModal({ diagram, isOpen, onClose, onDescriptionSaved }: D
                   </div>
                   
                   {/* Editable Level of Detail */}
-                  <div className="flex flex-col gap-2 text-sm">
-                    <div className="flex items-center justify-between">
-                      <dt className="text-gray-500 font-medium">Level of Detail:</dt>
-                      {!isEditingLevel && (
-                        <button
-                          onClick={() => {
-                            setIsEditingLevel(true);
-                            setEditedLevel(currentLevel || 1);
-                          }}
-                          className="text-sap-blue hover:text-sap-dark-blue transition-colors"
-                          title="Edit level of detail"
-                        >
-                          <Edit2 className="w-4 h-4" />
-                        </button>
-                      )}
-                    </div>
-                    {isEditingLevel ? (
-                      <div className="flex flex-col gap-2">
-                        <select
-                          value={editedLevel}
-                          onChange={(e) => setEditedLevel(parseInt(e.target.value))}
-                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-sap-blue focus:border-sap-blue"
-                        >
-                          <option value={1}>1 - Overview</option>
-                          <option value={2}>2 - Medium Detail</option>
-                          <option value={3}>3 - Very Detailed</option>
-                        </select>
-                        <div className="flex gap-2">
+                  <div className="text-sm">
+                    <div className="flex items-center gap-3">
+                      <dt className="text-gray-500 font-medium min-w-[110px]">Level of Detail:</dt>
+                      {isEditingLevel ? (
+                        <div className="flex-1 flex items-center gap-2">
+                          <select
+                            value={editedLevel}
+                            onChange={(e) => setEditedLevel(parseInt(e.target.value))}
+                            className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-sap-blue focus:border-sap-blue"
+                          >
+                            <option value={1}>1 - Overview</option>
+                            <option value={2}>2 - Medium Detail</option>
+                            <option value={3}>3 - Very Detailed</option>
+                          </select>
                           <button
                             onClick={() => {
                               saveLevelOfDetail(diagram.id, editedLevel);
@@ -220,7 +206,7 @@ export function DiagramModal({ diagram, isOpen, onClose, onDescriptionSaved }: D
                                 onDescriptionSaved();
                               }
                             }}
-                            className="inline-flex items-center gap-2 px-3 py-1.5 bg-sap-blue text-white text-sm rounded hover:bg-sap-dark-blue transition-colors"
+                            className="inline-flex items-center gap-2 px-3 py-1.5 bg-sap-blue text-white text-sm rounded hover:bg-sap-dark-blue transition-colors whitespace-nowrap"
                           >
                             <Save className="w-3.5 h-3.5" />
                             Save
@@ -232,12 +218,24 @@ export function DiagramModal({ diagram, isOpen, onClose, onDescriptionSaved }: D
                             Cancel
                           </button>
                         </div>
-                      </div>
-                    ) : (
-                      <dd className="font-medium text-gray-900">
-                        {currentLevel ? `${currentLevel} - ${currentLevel === 1 ? 'Overview' : currentLevel === 2 ? 'Medium Detail' : 'Very Detailed'}` : 'Not set'}
-                      </dd>
-                    )}
+                      ) : (
+                        <>
+                          <dd className="flex-1 font-medium text-gray-900">
+                            {currentLevel ? `${currentLevel} - ${currentLevel === 1 ? 'Overview' : currentLevel === 2 ? 'Medium Detail' : 'Very Detailed'}` : 'Not set'}
+                          </dd>
+                          <button
+                            onClick={() => {
+                              setIsEditingLevel(true);
+                              setEditedLevel(currentLevel || 1);
+                            }}
+                            className="text-sap-blue hover:text-sap-dark-blue transition-colors"
+                            title="Edit level of detail"
+                          >
+                            <Edit2 className="w-4 h-4" />
+                          </button>
+                        </>
+                      )}
+                    </div>
                   </div>
                   
                   {/* All Versions with Links */}

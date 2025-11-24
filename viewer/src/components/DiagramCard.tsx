@@ -1,4 +1,3 @@
-import { FileImage } from 'lucide-react';
 import type { Diagram } from '@/types/diagram';
 import { getDiagramImageUrl } from '@/services/diagramService';
 
@@ -42,8 +41,7 @@ export function DiagramCard({ diagram, onClick }: DiagramCardProps) {
         </h3>
         
         {/* Description */}
-        <div className="flex items-center gap-1 text-xs text-gray-500">
-          <FileImage className="w-3 h-3" />
+        <div className="text-xs text-gray-500">
           <span className="line-clamp-1">{diagram.description || 'No description'}</span>
         </div>
       </div>
