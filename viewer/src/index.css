@@ -2,9 +2,42 @@
 @tailwind components;
 @tailwind utilities;
 
+:root {
+  /* SAP Fiori Colors */
+  --sap-blue: #0854A0;
+  --sap-dark-blue: #053B70;
+  --sap-light-gray: #F7F7F7;
+  --sap-border: #D9D9D9;
+  --sap-text: #32363A;
+  --sap-success: #107E3E;
+  --sap-warning: #E9730C;
+  --sap-error: #BB0000;
+}
+
 @layer base {
   body {
     @apply font-sap;
+    color: var(--sap-text);
+  }
+  
+  /* SAP Fiori Button Styles */
+  button {
+    @apply transition-all duration-200;
+  }
+  
+  /* SAP Fiori Input Styles */
+  input[type="text"],
+  input[type="search"],
+  textarea {
+    @apply transition-all duration-200;
+  }
+  
+  input[type="text"]:focus,
+  input[type="search"]:focus,
+  textarea:focus {
+    outline: none;
+    border-color: var(--sap-blue);
+    box-shadow: 0 0 0 1px var(--sap-blue);
   }
 }
 

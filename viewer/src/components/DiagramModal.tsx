@@ -1,4 +1,5 @@
-import { X, Download, ExternalLink, Calendar } from 'lucide-react';
+import { useState } from 'react';
+import { X, Download, ExternalLink, Calendar, Edit2, Save, Link } from 'lucide-react';
 import type { Diagram } from '@/types/diagram';
 import { getDiagramImageUrl } from '@/services/diagramService';
 
@@ -9,9 +10,14 @@ interface DiagramModalProps {
 }
 
 export function DiagramModal({ diagram, isOpen, onClose }: DiagramModalProps) {
+  const [isEditingDescription, setIsEditingDescription] = useState(false);
+  const [editedDescription, setEditedDescription] = useState('');
+  const [isSaving, setIsSaving] = useState(false);
+
   if (!isOpen || !diagram) return null;
 
   const imageUrl = getDiagramImageUrl(diagram);
+  const description = diagram.description || diagram.category;
   
   const handleDownload = () => {
     const link = document.createElement('a');
@@ -69,18 +75,99 @@ export function DiagramModal({ diagram, isOpen, onClose }: DiagramModalProps) {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
               <div>
                 <h3 className="text-sm font-semibold text-gray-700 mb-3">Details</h3>
-                <dl className="space-y-2">
-                  <div className="flex items-center gap-2 text-sm">
-                    <dt className="text-gray-500 min-w-24">Category:</dt>
-                    <dd className="font-medium text-gray-900">{diagram.category}</dd>
+                <dl className="space-y-3">
+                  {/* Editable Description */}
+                  <div className="flex flex-col gap-2 text-sm">
+                    <div className="flex items-center justify-between">
+                      <dt className="text-gray-500 font-medium">Description:</dt>
+                      {!isEditingDescription && (
+                        <button
+                          onClick={() => {
+                            setIsEditingDescription(true);
+                            setEditedDescription(description);
+                          }}
+                          className="text-sap-blue hover:text-sap-dark-blue transition-colors"
+                          title="Edit description"
+                        >
+                          <Edit2 className="w-4 h-4" />
+                        </button>
+                      )}
+                    </div>
+                    {isEditingDescription ? (
+                      <div className="flex flex-col gap-2">
+                        <textarea
+                          value={editedDescription}
+                          onChange={(e) => setEditedDescription(e.target.value)}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-sap-blue focus:border-sap-blue resize-none"
+                          rows={3}
+                          placeholder="Enter description..."
+                        />
+                        <div className="flex gap-2">
+                          <button
+                            onClick={() => {
+                              // TODO: Save to DMS
+                              setIsSaving(true);
+                              setTimeout(() => {
+                                setIsSaving(false);
+                                setIsEditingDescription(false);
+                              }, 500);
+                            }}
+                            disabled={isSaving}
+                            className="inline-flex items-center gap-2 px-3 py-1.5 bg-sap-blue text-white text-sm rounded hover:bg-sap-dark-blue transition-colors disabled:opacity-50"
+                          >
+                            <Save className="w-3.5 h-3.5" />
+                            {isSaving ? 'Saving...' : 'Save'}
+                          </button>
+                          <button
+                            onClick={() => setIsEditingDescription(false)}
+                            className="px-3 py-1.5 bg-gray-200 text-gray-700 text-sm rounded hover:bg-gray-300 transition-colors"
+                          >
+                            Cancel
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      <dd className="font-medium text-gray-900">{description}</dd>
+                    )}
                   </div>
+                  
                   <div className="flex items-center gap-2 text-sm">
-                    <dt className="text-gray-500 min-w-24">Version:</dt>
+                    <dt className="text-gray-500 min-w-24">Current Version:</dt>
                     <dd className="font-medium text-gray-900">{diagram.currentVersion}</dd>
                   </div>
-                  <div className="flex items-center gap-2 text-sm">
-                    <dt className="text-gray-500 min-w-24">All Versions:</dt>
-                    <dd className="font-medium text-gray-900">{diagram.versions.join(', ')}</dd>
+                  
+                  {/* All Versions with Links */}
+                  <div className="flex flex-col gap-2 text-sm">
+                    <dt className="text-gray-500 font-medium">All Versions:</dt>
+                    <dd className="flex flex-wrap gap-2">
+                      {diagram.versions.map((version) => {
+                        const versionUrl = diagram.versionUrls?.[version];
+                        return (
+                          <span
+                            key={version}
+                            className={`inline-flex items-center gap-1 px-2 py-1 rounded text-xs ${
+                              version === diagram.currentVersion
+                                ? 'bg-sap-blue text-white'
+                                : 'bg-gray-100 text-gray-700'
+                            }`}
+                          >
+                            {version}
+                            {versionUrl && (
+                              <a
+                                href={versionUrl}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="hover:opacity-75 transition-opacity"
+                                title={`Open ${version} in DMS`}
+                                onClick={(e) => e.stopPropagation()}
+                              >
+                                <Link className="w-3 h-3" />
+                              </a>
+                            )}
+                          </span>
+                        );
+                      })}
+                    </dd>
                   </div>
                 </dl>
               </div>

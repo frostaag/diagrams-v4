@@ -5,10 +5,12 @@ export interface Diagram {
   drawioFile: string;
   currentVersion: string;
   currentPngFile: string;
-  category: string;
+  category: string; // Kept for backwards compatibility, displayed as "Description"
+  description?: string; // User-editable description (synced with DMS metadata)
   created: string;
   lastModified: string;
   versions: string[];
+  versionUrls?: Record<string, string>; // Map of version -> DMS URL
   status: string;
   imageUrl?: string; // Optional: URL to fetch image from DMS
 }
