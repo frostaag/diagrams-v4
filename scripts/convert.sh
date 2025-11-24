@@ -52,16 +52,49 @@ fi
 current_date=$(date +"%d.%m.%Y")
 current_time=$(date +"%H:%M:%S")
 
-# Function to get next ID from registry
+# Function to get next available ID (checks for gaps first, then uses nextId)
 get_next_id() {
-  jq -r '.nextId' diagram-registry.json
+  # Get all existing IDs from registry
+  local existing_ids=$(jq -r '.diagrams | keys[]' diagram-registry.json 2>/dev/null | sort -n)
+  
+  # Find the first available ID (starting from 1)
+  local check_id=1
+  while true; do
+    local padded_id=$(printf "%03d" $check_id)
+    
+    # Check if this ID exists in registry
+    if ! echo "$existing_ids" | grep -q "^${padded_id}$"; then
+      # Found a gap or new ID
+      echo $check_id
+      return 0
+    fi
+    
+    ((check_id++))
+    
+    # Safety limit to prevent infinite loop
+    if [[ $check_id -gt 999 ]]; then
+      echo "ERROR: No available IDs (limit reached)" >&2
+      return 1
+    fi
+  done
 }
 
-# Function to increment next ID in registry
-increment_next_id() {
+# Function to update next ID in registry (sets to one after highest used ID)
+update_next_id() {
   local temp_file=$(mktemp)
-  jq --arg timestamp "$(date -u +"%Y-%m-%dT%H:%M:%SZ")" \
-     '.nextId += 1 | .lastUpdated = $timestamp' \
+  
+  # Get highest used ID
+  local highest_id=$(jq -r '.diagrams | keys[] | tonumber' diagram-registry.json 2>/dev/null | sort -n | tail -1)
+  
+  if [[ -z "$highest_id" ]] || [[ "$highest_id" == "null" ]]; then
+    highest_id=0
+  fi
+  
+  local next_id=$((highest_id + 1))
+  
+  jq --arg next_id "$next_id" \
+     --arg timestamp "$(date -u +"%Y-%m-%dT%H:%M:%SZ")" \
+     '.nextId = ($next_id | tonumber) | .lastUpdated = $timestamp' \
      diagram-registry.json > "$temp_file"
   mv "$temp_file" diagram-registry.json
 }
@@ -293,7 +326,7 @@ for file in drawio_files/*.drawio; do
     echo "📝 Renaming: $basename_file -> $new_filename"
     
     mv "drawio_files/$basename_file" "drawio_files/$new_filename"
-    increment_next_id
+    update_next_id
     
     basename_file="$new_filename"
     file="drawio_files/$new_filename"
