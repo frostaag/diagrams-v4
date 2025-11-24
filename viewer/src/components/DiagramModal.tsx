@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { X, Download, ExternalLink, Calendar, Edit2, Save, Link, Check } from 'lucide-react';
 import type { Diagram } from '@/types/diagram';
 import { getDiagramImageUrl, saveDescription } from '@/services/diagramService';
@@ -15,11 +15,23 @@ export function DiagramModal({ diagram, isOpen, onClose, onDescriptionSaved }: D
   const [editedDescription, setEditedDescription] = useState('');
   const [isSaving, setIsSaving] = useState(false);
   const [showSaved, setShowSaved] = useState(false);
+  const [currentDescription, setCurrentDescription] = useState('');
+
+  // Reset and initialize currentDescription when modal opens/closes or diagram changes
+  useEffect(() => {
+    if (isOpen && diagram) {
+      setCurrentDescription(diagram.description || diagram.category || '');
+    } else {
+      setCurrentDescription('');
+    }
+  }, [isOpen, diagram?.id, diagram?.description]);
 
   if (!isOpen || !diagram) return null;
 
+  // Use current description for display
+  const description = currentDescription;
+
   const imageUrl = getDiagramImageUrl(diagram);
-  const description = diagram.description || diagram.category;
   
   const handleDownload = () => {
     const link = document.createElement('a');
@@ -111,13 +123,16 @@ export function DiagramModal({ diagram, isOpen, onClose, onDescriptionSaved }: D
                               // Save to localStorage
                               saveDescription(diagram.id, editedDescription);
                               
+                              // Update current description immediately
+                              setCurrentDescription(editedDescription);
+                              
                               // Show saved indicator
                               setTimeout(() => {
                                 setIsSaving(false);
                                 setIsEditingDescription(false);
                                 setShowSaved(true);
                                 
-                                // Call parent refetch to update the diagram
+                                // Call parent refetch to update the diagram for other instances
                                 if (onDescriptionSaved) {
                                   onDescriptionSaved();
                                 }
