@@ -11,7 +11,7 @@ A **SAP Fiori application** that displays technical diagrams stored in SAP Docum
 - **Backend**: SAP Document Management Service (DMS) via CMIS API
 - **Authentication**: OAuth2 via SAP Destination Service
 - **Content Type**: SVG diagram files with inherited metadata
-- **API Endpoint**: Available via destination `DMS_DESTINATION`
+- **API Endpoint**: Available via destination `sap_process_automation_document_store_diagramsà
 
 ### Key Metadata Fields (from DMS)
 - `cmis:objectId` - Unique document ID
