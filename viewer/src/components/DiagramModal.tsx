@@ -1,18 +1,20 @@
 import { useState } from 'react';
-import { X, Download, ExternalLink, Calendar, Edit2, Save, Link } from 'lucide-react';
+import { X, Download, ExternalLink, Calendar, Edit2, Save, Link, Check } from 'lucide-react';
 import type { Diagram } from '@/types/diagram';
-import { getDiagramImageUrl } from '@/services/diagramService';
+import { getDiagramImageUrl, saveDescription } from '@/services/diagramService';
 
 interface DiagramModalProps {
   diagram: Diagram | null;
   isOpen: boolean;
   onClose: () => void;
+  onDescriptionSaved?: () => void;
 }
 
-export function DiagramModal({ diagram, isOpen, onClose }: DiagramModalProps) {
+export function DiagramModal({ diagram, isOpen, onClose, onDescriptionSaved }: DiagramModalProps) {
   const [isEditingDescription, setIsEditingDescription] = useState(false);
   const [editedDescription, setEditedDescription] = useState('');
   const [isSaving, setIsSaving] = useState(false);
+  const [showSaved, setShowSaved] = useState(false);
 
   if (!isOpen || !diagram) return null;
 
@@ -105,18 +107,41 @@ export function DiagramModal({ diagram, isOpen, onClose }: DiagramModalProps) {
                         <div className="flex gap-2">
                           <button
                             onClick={() => {
-                              // TODO: Save to DMS
                               setIsSaving(true);
+                              // Save to localStorage
+                              saveDescription(diagram.id, editedDescription);
+                              
+                              // Show saved indicator
                               setTimeout(() => {
                                 setIsSaving(false);
                                 setIsEditingDescription(false);
-                              }, 500);
+                                setShowSaved(true);
+                                
+                                // Call parent refetch to update the diagram
+                                if (onDescriptionSaved) {
+                                  onDescriptionSaved();
+                                }
+                                
+                                // Hide saved indicator after 2 seconds
+                                setTimeout(() => {
+                                  setShowSaved(false);
+                                }, 2000);
+                              }, 300);
                             }}
                             disabled={isSaving}
                             className="inline-flex items-center gap-2 px-3 py-1.5 bg-sap-blue text-white text-sm rounded hover:bg-sap-dark-blue transition-colors disabled:opacity-50"
                           >
-                            <Save className="w-3.5 h-3.5" />
-                            {isSaving ? 'Saving...' : 'Save'}
+                            {showSaved ? (
+                              <>
+                                <Check className="w-3.5 h-3.5" />
+                                Saved!
+                              </>
+                            ) : (
+                              <>
+                                <Save className="w-3.5 h-3.5" />
+                                {isSaving ? 'Saving...' : 'Save'}
+                              </>
+                            )}
                           </button>
                           <button
                             onClick={() => setIsEditingDescription(false)}

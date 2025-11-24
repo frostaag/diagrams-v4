@@ -4,7 +4,7 @@ import { Search, Folder, RefreshCw } from 'lucide-react';
 import { DiagramCard } from '@/components/DiagramCard';
 import { DiagramModal } from '@/components/DiagramModal';
 import { getDiagramsFromDMS, isDMSConfigured, groupDiagramsByCategory, searchDiagrams } from '@/services/dmsService';
-import { getDiagrams, groupDiagramsByCategory as groupLocalDiagrams, searchDiagrams as searchLocalDiagrams } from '@/services/diagramService';
+import { getDiagramsWithDescriptions, groupDiagramsByCategory as groupLocalDiagrams, searchDiagrams as searchLocalDiagrams } from '@/services/diagramService';
 import type { Diagram } from '@/types/diagram';
 
 function App() {
@@ -17,7 +17,7 @@ function App() {
   
   const { data: diagrams = [], isLoading, error, refetch } = useQuery({
     queryKey: ['diagrams', useDMS ? 'dms' : 'local'],
-    queryFn: useDMS ? getDiagramsFromDMS : getDiagrams,
+    queryFn: useDMS ? getDiagramsFromDMS : getDiagramsWithDescriptions,
     staleTime: 5 * 60 * 1000, // 5 minutes
   });
 
@@ -157,6 +157,7 @@ function App() {
         diagram={selectedDiagram}
         isOpen={isModalOpen}
         onClose={handleCloseModal}
+        onDescriptionSaved={refetch}
       />
     </div>
   );
