@@ -3,8 +3,8 @@ import { useQuery } from '@tanstack/react-query';
 import { Search, Folder, RefreshCw } from 'lucide-react';
 import { DiagramCard } from '@/components/DiagramCard';
 import { DiagramModal } from '@/components/DiagramModal';
-import { getDiagramsFromDMS, isDMSConfigured, groupDiagramsByCategory, searchDiagrams } from '@/services/dmsService';
-import { getDiagramsWithDescriptions, groupDiagramsByCategory as groupLocalDiagrams, searchDiagrams as searchLocalDiagrams } from '@/services/diagramService';
+import { getDiagramsFromDMS, isDMSConfigured, searchDiagrams } from '@/services/dmsService';
+import { getDiagramsWithDescriptions, searchDiagrams as searchLocalDiagrams } from '@/services/diagramService';
 import type { Diagram } from '@/types/diagram';
 
 function App() {
@@ -39,7 +39,37 @@ function App() {
     ? (useDMS ? searchDiagrams(diagrams, searchTerm) : searchLocalDiagrams(diagrams, searchTerm))
     : diagrams;
 
-  const groupedDiagrams = useDMS ? groupDiagramsByCategory(filteredDiagrams) : groupLocalDiagrams(filteredDiagrams);
+  // Group by Level of Detail
+  const groupedDiagrams = new Map<string, Diagram[]>();
+  const levelLabels = {
+    1: 'Level 1 - Overview',
+    2: 'Level 2 - Medium Detail',
+    3: 'Level 3 - Very Detailed',
+    0: 'Not Categorized'
+  };
+  
+  filteredDiagrams.forEach(diagram => {
+    const level = diagram.levelOfDetail || 0;
+    const levelKey = levelLabels[level as keyof typeof levelLabels] || levelLabels[0];
+    
+    if (!groupedDiagrams.has(levelKey)) {
+      groupedDiagrams.set(levelKey, []);
+    }
+    groupedDiagrams.get(levelKey)!.push(diagram);
+  });
+  
+  // Sort groups by level number (1, 2, 3, then uncategorized)
+  const sortedGroups = Array.from(groupedDiagrams.entries()).sort((a, b) => {
+    const getLevelNum = (label: string) => {
+      if (label.includes('Level 1')) return 1;
+      if (label.includes('Level 2')) return 2;
+      if (label.includes('Level 3')) return 3;
+      return 4; // Not Categorized goes last
+    };
+    return getLevelNum(a[0]) - getLevelNum(b[0]);
+  });
+  
+  const sortedGroupedDiagrams = new Map(sortedGroups);
 
   if (isLoading) {
     return (
@@ -128,17 +158,17 @@ function App() {
         ) : (
           <>
             {/* Category Sections */}
-            {Array.from(groupedDiagrams.entries()).map(([category, categoryDiagrams]) => (
-              <section key={category} className="mb-12">
+            {Array.from(sortedGroupedDiagrams.entries()).map(([levelLabel, levelDiagrams]) => (
+              <section key={levelLabel} className="mb-12">
                 <div className="flex items-center gap-3 mb-6">
-                  <h2 className="text-2xl font-bold text-gray-900">{category}</h2>
+                  <h2 className="text-2xl font-bold text-gray-900">{levelLabel}</h2>
                   <span className="text-sm text-gray-500">
-                    ({categoryDiagrams.length})
+                    ({levelDiagrams.length})
                   </span>
                 </div>
                 
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-                  {categoryDiagrams.map((diagram) => (
+                  {levelDiagrams.map((diagram) => (
                     <DiagramCard
                       key={diagram.id}
                       diagram={diagram}

@@ -41,10 +41,10 @@ export function DiagramCard({ diagram, onClick }: DiagramCardProps) {
           {diagram.name}
         </h3>
         
-        {/* Category */}
+        {/* Description */}
         <div className="flex items-center gap-1 text-xs text-gray-500">
           <FileImage className="w-3 h-3" />
-          <span>{diagram.category}</span>
+          <span className="line-clamp-1">{diagram.description || 'No description'}</span>
         </div>
       </div>
       

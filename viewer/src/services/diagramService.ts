@@ -34,8 +34,9 @@ export function sortVersions(versions: string[]): string[] {
   });
 }
 
-// LocalStorage functions for description persistence
+// LocalStorage functions for description and level persistence
 const DESCRIPTION_STORAGE_KEY = 'diagram-descriptions';
+const LEVEL_STORAGE_KEY = 'diagram-levels';
 
 export function saveDescription(diagramId: string, description: string): void {
   try {
@@ -57,12 +58,33 @@ export function getDescription(diagramId: string): string | null {
   }
 }
 
+export function saveLevelOfDetail(diagramId: string, level: number): void {
+  try {
+    const levels = JSON.parse(localStorage.getItem(LEVEL_STORAGE_KEY) || '{}');
+    levels[diagramId] = level;
+    localStorage.setItem(LEVEL_STORAGE_KEY, JSON.stringify(levels));
+  } catch (error) {
+    console.error('Failed to save level:', error);
+  }
+}
+
+export function getLevelOfDetail(diagramId: string): number | null {
+  try {
+    const levels = JSON.parse(localStorage.getItem(LEVEL_STORAGE_KEY) || '{}');
+    return levels[diagramId] || null;
+  } catch (error) {
+    console.error('Failed to get level:', error);
+    return null;
+  }
+}
+
 export async function getDiagramsWithDescriptions(): Promise<Diagram[]> {
   const diagrams = await getDiagrams();
   
-  // Enrich with saved descriptions and sorted versions
+  // Enrich with saved descriptions, levels, and sorted versions
   return diagrams.map(diagram => {
     const savedDescription = getDescription(diagram.id);
+    const savedLevel = getLevelOfDetail(diagram.id);
     const sortedVersions = sortVersions([...diagram.versions]);
     
     // Generate version URLs
@@ -74,6 +96,7 @@ export async function getDiagramsWithDescriptions(): Promise<Diagram[]> {
     return {
       ...diagram,
       description: savedDescription || diagram.category,
+      levelOfDetail: savedLevel || undefined,
       versions: sortedVersions,
       versionUrls,
     };

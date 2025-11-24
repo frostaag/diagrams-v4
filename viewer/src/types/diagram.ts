@@ -7,6 +7,7 @@ export interface Diagram {
   currentPngFile: string;
   category: string; // Kept for backwards compatibility, displayed as "Description"
   description?: string; // User-editable description (synced with DMS metadata)
+  levelOfDetail?: number; // 1 (overview), 2 (medium), 3 (very detailed)
   created: string;
   lastModified: string;
   versions: string[];

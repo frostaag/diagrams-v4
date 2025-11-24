@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { X, Download, ExternalLink, Calendar, Edit2, Save, Link, Check } from 'lucide-react';
 import type { Diagram } from '@/types/diagram';
-import { getDiagramImageUrl, saveDescription } from '@/services/diagramService';
+import { getDiagramImageUrl, saveDescription, saveLevelOfDetail } from '@/services/diagramService';
 
 interface DiagramModalProps {
   diagram: Diagram | null;
@@ -13,18 +13,23 @@ interface DiagramModalProps {
 export function DiagramModal({ diagram, isOpen, onClose, onDescriptionSaved }: DiagramModalProps) {
   const [isEditingDescription, setIsEditingDescription] = useState(false);
   const [editedDescription, setEditedDescription] = useState('');
+  const [isEditingLevel, setIsEditingLevel] = useState(false);
+  const [editedLevel, setEditedLevel] = useState<number>(1);
   const [isSaving, setIsSaving] = useState(false);
   const [showSaved, setShowSaved] = useState(false);
   const [currentDescription, setCurrentDescription] = useState('');
+  const [currentLevel, setCurrentLevel] = useState<number | undefined>(undefined);
 
-  // Reset and initialize currentDescription when modal opens/closes or diagram changes
+  // Reset and initialize state when modal opens/closes or diagram changes
   useEffect(() => {
     if (isOpen && diagram) {
       setCurrentDescription(diagram.description || diagram.category || '');
+      setCurrentLevel(diagram.levelOfDetail);
     } else {
       setCurrentDescription('');
+      setCurrentLevel(undefined);
     }
-  }, [isOpen, diagram?.id, diagram?.description]);
+  }, [isOpen, diagram?.id, diagram?.description, diagram?.levelOfDetail]);
 
   if (!isOpen || !diagram) return null;
 
@@ -174,6 +179,65 @@ export function DiagramModal({ diagram, isOpen, onClose, onDescriptionSaved }: D
                   <div className="flex items-center gap-2 text-sm">
                     <dt className="text-gray-500 min-w-24">Current Version:</dt>
                     <dd className="font-medium text-gray-900">{diagram.currentVersion}</dd>
+                  </div>
+                  
+                  {/* Editable Level of Detail */}
+                  <div className="flex flex-col gap-2 text-sm">
+                    <div className="flex items-center justify-between">
+                      <dt className="text-gray-500 font-medium">Level of Detail:</dt>
+                      {!isEditingLevel && (
+                        <button
+                          onClick={() => {
+                            setIsEditingLevel(true);
+                            setEditedLevel(currentLevel || 1);
+                          }}
+                          className="text-sap-blue hover:text-sap-dark-blue transition-colors"
+                          title="Edit level of detail"
+                        >
+                          <Edit2 className="w-4 h-4" />
+                        </button>
+                      )}
+                    </div>
+                    {isEditingLevel ? (
+                      <div className="flex flex-col gap-2">
+                        <select
+                          value={editedLevel}
+                          onChange={(e) => setEditedLevel(parseInt(e.target.value))}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-sap-blue focus:border-sap-blue"
+                        >
+                          <option value={1}>1 - Overview</option>
+                          <option value={2}>2 - Medium Detail</option>
+                          <option value={3}>3 - Very Detailed</option>
+                        </select>
+                        <div className="flex gap-2">
+                          <button
+                            onClick={() => {
+                              saveLevelOfDetail(diagram.id, editedLevel);
+                              setCurrentLevel(editedLevel);
+                              setIsEditingLevel(false);
+                              
+                              if (onDescriptionSaved) {
+                                onDescriptionSaved();
+                              }
+                            }}
+                            className="inline-flex items-center gap-2 px-3 py-1.5 bg-sap-blue text-white text-sm rounded hover:bg-sap-dark-blue transition-colors"
+                          >
+                            <Save className="w-3.5 h-3.5" />
+                            Save
+                          </button>
+                          <button
+                            onClick={() => setIsEditingLevel(false)}
+                            className="px-3 py-1.5 bg-gray-200 text-gray-700 text-sm rounded hover:bg-gray-300 transition-colors"
+                          >
+                            Cancel
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      <dd className="font-medium text-gray-900">
+                        {currentLevel ? `${currentLevel} - ${currentLevel === 1 ? 'Overview' : currentLevel === 2 ? 'Medium Detail' : 'Very Detailed'}` : 'Not set'}
+                      </dd>
+                    )}
                   </div>
                   
                   {/* All Versions with Links */}
