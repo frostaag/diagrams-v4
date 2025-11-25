@@ -2,7 +2,7 @@
   "nextId": 3,
   "version": "2.0",
   "created": "2025-11-18T12:00:00Z",
-  "lastUpdated": "2025-11-24T08:39:07Z",
+  "lastUpdated": "2025-11-25T04:47:03Z",
   "diagrams": {
     "002": {
       "id": "002",
@@ -55,15 +55,16 @@
       "name": "SAP Cloud",
       "originalName": "001_SAP Cloud.drawio",
       "drawioFile": "001_SAP Cloud.drawio",
-      "currentVersion": "v3",
-      "currentPngFile": "001_SAP Cloud_v3.svg",
+      "currentVersion": "v4",
+      "currentPngFile": "001_SAP Cloud_v4.svg",
       "category": "General",
       "created": "2025-11-24T08:31:16Z",
-      "lastModified": "2025-11-24T08:39:07Z",
+      "lastModified": "2025-11-25T04:47:03Z",
       "versions": [
         "v1",
         "v2",
-        "v3"
+        "v3",
+        "v4"
       ],
       "status": "active"
     }
